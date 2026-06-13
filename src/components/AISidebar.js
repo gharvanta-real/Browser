@@ -24,11 +24,13 @@ export class AISidebar extends BaseComponent {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
-        // Inline formatting (bold, italic, code)
-        escaped = escaped
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`(.*?)`/g, '<code>$1</code>');
+        // Helper function to apply inline formatting to block content
+        const formatInline = (content) => {
+            return content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>');
+        };
 
         const lines = escaped.split('\n');
         let inList = false;
@@ -57,7 +59,8 @@ export class AISidebar extends BaseComponent {
                     inList = false;
                     listType = null;
                 }
-                formattedLines.push(`<blockquote style="margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--color-border-light, #dadce0); color: var(--color-text-inactive); font-style: italic;">${blockquoteMatch[2]}</blockquote>`);
+                const content = formatInline(blockquoteMatch[2]);
+                formattedLines.push(`<blockquote style="margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--color-border-light, #dadce0); color: var(--color-text-inactive); font-style: italic;">${content}</blockquote>`);
                 return;
             }
 
@@ -70,8 +73,8 @@ export class AISidebar extends BaseComponent {
                     listType = null;
                 }
                 const level = headingMatch[2].length;
-                const title = headingMatch[3];
-                const fontSize = level === 1 ? '1.3em' : level === 2 ? '1.15em' : level === 3 ? '1em' : '0.9em';
+                const title = formatInline(headingMatch[3]);
+                const fontSize = level === 1 ? '1.3em' : level === 2 ? '1.15em' : level === 3 ? '1.05em' : '0.95em';
                 const marginTop = level === 1 ? '14px' : level === 2 ? '12px' : level === 3 ? '10px' : '8px';
                 formattedLines.push(`<h${level} style="font-size: ${fontSize}; font-weight: 600; margin: ${marginTop} 0 6px 0; color: var(--color-text-active);">${title}</h${level}>`);
                 return;
@@ -90,7 +93,8 @@ export class AISidebar extends BaseComponent {
                     inList = true;
                     listType = 'ul';
                 }
-                formattedLines.push(`<li style="margin: 3px 0;">${ulMatch[2]}</li>`);
+                const content = formatInline(ulMatch[2]);
+                formattedLines.push(`<li style="margin: 3px 0;">${content}</li>`);
             } else if (olMatch) {
                 if (!inList || listType !== 'ol') {
                     if (inList) {
@@ -100,7 +104,8 @@ export class AISidebar extends BaseComponent {
                     inList = true;
                     listType = 'ol';
                 }
-                formattedLines.push(`<li style="margin: 3px 0;">${olMatch[2]}</li>`);
+                const content = formatInline(olMatch[2]);
+                formattedLines.push(`<li style="margin: 3px 0;">${content}</li>`);
             } else {
                 if (inList) {
                     formattedLines.push(`</${listType}>`);
@@ -108,7 +113,8 @@ export class AISidebar extends BaseComponent {
                     listType = null;
                 }
                 if (trimmed) {
-                    formattedLines.push(`<p style="margin: 6px 0; line-height: 1.45;">${trimmed}</p>`);
+                    const content = formatInline(trimmed);
+                    formattedLines.push(`<p style="margin: 6px 0; line-height: 1.45;">${content}</p>`);
                 } else {
                     formattedLines.push('<div style="height: 6px;"></div>');
                 }
