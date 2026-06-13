@@ -18,6 +18,7 @@ import { PaymentsPage } from './components/pages/PaymentsPage.js';
 import { AddressesPage } from './components/pages/AddressesPage.js';
 import { ToolsPage } from './components/pages/ToolsPage.js';
 import { AISetupPage } from './components/pages/AISetupPage.js';
+import { SecurityPage } from './components/pages/SecurityPage.js';
 
 // Import Services & Engines
 import './services/AppState.js';
@@ -299,6 +300,7 @@ customElements.define('browser-payments-page', PaymentsPage);
 customElements.define('browser-addresses-page', AddressesPage);
 customElements.define('browser-tools-page', ToolsPage);
 customElements.define('browser-ai-setup-page', AISetupPage);
+customElements.define('browser-security-page', SecurityPage);
 
 // Global Window Actions (Minimize, Maximize, Close controls)
 document.querySelectorAll('.caption-btn, .win-btn').forEach(btn => {

@@ -1,3 +1,5 @@
+import { BackendClient } from './BackendClient.js';
+
 // Initialize Global App State
 window.AppState = {
     tabs: [
@@ -501,7 +503,27 @@ window.AppState = {
             });
             payload.savedAt = new Date().toISOString();
             localStorage.setItem('aero.browser.state.v1', JSON.stringify(payload));
+            if (this.backendSnapshotReady) {
+                BackendClient.saveStateSnapshot(payload).catch(() => {});
+            }
         } catch {}
+    },
+    async restoreFromBackend() {
+        try {
+            const result = await BackendClient.loadStateSnapshot();
+            if (result.snapshot) {
+                this.persistedKeys.forEach(key => {
+                    if (result.snapshot[key] !== undefined) {
+                        this[key] = result.snapshot[key];
+                    }
+                });
+                if (!this.tabs?.some(tab => tab.id === this.activeTabId)) {
+                    this.activeTabId = this.tabs?.[0]?.id || 'tab-new';
+                }
+                this.listeners.forEach(cb => cb(this));
+            }
+        } catch {}
+        this.backendSnapshotReady = true;
     },
     recordNavigationChanges(beforeTabs) {
         if (!this.syncHistory) return;
@@ -544,6 +566,7 @@ window.AppState = {
 
 window.AppState.restore();
 window.addEventListener('beforeunload', () => window.AppState.persistNow());
+window.AppState.restoreFromBackend();
 
 // Dynamic listener for OS theme changes
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

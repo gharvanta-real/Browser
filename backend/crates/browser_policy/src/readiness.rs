@@ -97,9 +97,9 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
             item(
                 BrowserFeatureArea::Security,
                 "7.7, 15",
-                FeatureStatus::ContractOnly,
-                "Safety policy blocks dangerous browser actions and models local-only CDP boundary.",
-                &["Chromium site isolation", "safe browsing lists", "certificate inspector", "process sandbox"],
+                FeatureStatus::Partial,
+                "Safety policy blocks dangerous browser actions, Electron shows native confirmation for gated actions, and renderer only reaches guest input through preload IPC.",
+                &["Chromium site isolation hardening", "safe browsing lists", "certificate inspector", "process sandbox review"],
             ),
             item(
                 BrowserFeatureArea::PasswordIdentity,
@@ -133,8 +133,8 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
                 BrowserFeatureArea::AiActionExecution,
                 "10.4, 13",
                 FeatureStatus::Partial,
-                "Agent actions, planning, permission tiers, audit events, CDP compilation, and Electron native input dispatch are wired for navigation/click/fill/scroll primitives.",
-                &["full AX node bounds resolution", "non-bypassable native modal", "durable activity log viewer", "complex planner/tool-use loop"],
+                "Agent actions, planning, permission tiers, audit events, CDP compilation, Electron native input dispatch, and label-to-coordinate element resolution are wired for navigation/click/fill/scroll primitives.",
+                &["full browser AXTree API integration", "durable activity log viewer", "complex planner/tool-use loop", "rollback/retry model"],
             ),
             item(
                 BrowserFeatureArea::PermissionsTrust,
@@ -147,8 +147,8 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
                 BrowserFeatureArea::PrivacyDataHandling,
                 "14",
                 FeatureStatus::Partial,
-                "Data classes and cloud/local handling decisions are implemented.",
-                &["encrypted stores", "export/delete flows", "what-was-sent inspector"],
+                "Data classes and cloud/local handling decisions are implemented; browser state snapshots and AI secrets use protected storage/DPAPI where available.",
+                &["export/delete flows", "what-was-sent inspector", "per-profile key rotation"],
             ),
             item(
                 BrowserFeatureArea::TelemetryReliability,

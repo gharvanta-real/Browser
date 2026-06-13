@@ -281,6 +281,35 @@ impl BrowserStorage {
         Ok(profile.clone())
     }
 
+    pub fn save_app_state_snapshot(&self, snapshot: &serde_json::Value) -> StorageResult<()> {
+        let json = serde_json::to_string(snapshot)?;
+        let protected = protect_secret(&json)?;
+        let protected_json = serde_json::to_string(&protected)?;
+        self.conn.execute(
+            "INSERT INTO app_state_snapshot (id, protected_json, updated_at)
+             VALUES (1, ?1, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET protected_json = excluded.protected_json, updated_at = CURRENT_TIMESTAMP",
+            params![protected_json],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_app_state_snapshot(&self) -> StorageResult<Option<serde_json::Value>> {
+        let protected_json = self.conn.query_row(
+            "SELECT protected_json FROM app_state_snapshot WHERE id = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        let protected_json = match protected_json {
+            Ok(json) => json,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let protected: ProtectedSecret = serde_json::from_str(&protected_json)?;
+        let json = reveal_secret(&protected)?;
+        Ok(Some(serde_json::from_str(&json)?))
+    }
+
     fn existing_api_key_json(&self, provider_key: &str) -> StorageResult<Option<String>> {
         let result = self.conn.query_row(
             "SELECT api_key_json FROM ai_provider_settings WHERE provider = ?1",
@@ -352,6 +381,12 @@ impl BrowserStorage {
             CREATE TABLE IF NOT EXISTS ai_profile (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 profile_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS app_state_snapshot (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                protected_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 

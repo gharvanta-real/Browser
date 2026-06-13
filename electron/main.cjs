@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, webContents, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net');
@@ -96,6 +96,10 @@ async function createWindow() {
       webviewTag: true
     }
   });
+
+  if (process.env.AERO_OPEN_DEVTOOLS === '1') {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -272,4 +276,20 @@ ipcMain.handle('aero:download:open', async (_event, filePath) => {
   if (!filePath) return false;
   const result = await shell.openPath(filePath);
   return result || true;
+});
+
+ipcMain.handle('aero:confirm-sensitive-action', async (event, payload = {}) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Cancel', 'Allow once'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Aero safety confirmation',
+    message: payload.title || 'Allow this browser action?',
+    detail: payload.detail || 'This action needs explicit confirmation before Aero can continue.',
+    noLink: true,
+    normalizeAccessKeys: true
+  });
+  return result.response === 1;
 });

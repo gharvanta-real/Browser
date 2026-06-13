@@ -99,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/privacy/policy", get(privacy_policy))
         .route("/v1/readiness", get(readiness))
         .route("/v1/storage/health", get(storage_health))
+        .route("/v1/state/snapshot", get(load_state_snapshot).post(save_state_snapshot))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -638,6 +639,41 @@ async fn storage_health(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
+async fn load_state_snapshot(State(state): State<AppState>) -> impl IntoResponse {
+    match state.storage.lock().load_app_state_snapshot() {
+        Ok(snapshot) => (StatusCode::OK, Json(StateSnapshotResponse { snapshot })).into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn save_state_snapshot(
+    State(state): State<AppState>,
+    Json(request): Json<StateSnapshotRequest>,
+) -> impl IntoResponse {
+    match state.storage.lock().save_app_state_snapshot(&request.snapshot) {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(StateSnapshotResponse {
+                snapshot: Some(request.snapshot),
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Serialize)]
 struct HealthResponse {
     status: &'static str,
@@ -673,6 +709,16 @@ struct StorageHealthResponse {
     schema_version: u32,
     audit_events: u64,
     search_documents: u64,
+}
+
+#[derive(Deserialize)]
+struct StateSnapshotRequest {
+    snapshot: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct StateSnapshotResponse {
+    snapshot: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]

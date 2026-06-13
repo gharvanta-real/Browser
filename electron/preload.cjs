@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('aeroNative', {
   cancelDownload: (id) => ipcRenderer.invoke('aero:download:cancel', id),
   showDownload: (filePath) => ipcRenderer.invoke('aero:download:show', filePath),
   openDownload: (filePath) => ipcRenderer.invoke('aero:download:open', filePath),
+  confirmSensitiveAction: (payload) => ipcRenderer.invoke('aero:confirm-sensitive-action', payload),
   onDownload: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('aero:download', listener);

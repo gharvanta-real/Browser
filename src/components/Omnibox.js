@@ -428,7 +428,7 @@ export class Omnibox extends BaseComponent {
         if (urlShieldBtn) {
             urlShieldBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                alert(this.siteSecuritySummary());
+                this.navigateTab('aero://security');
             });
         }
 

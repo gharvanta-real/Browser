@@ -71,6 +71,8 @@
   --color-viewport-text-muted: #6B7280;
   --color-viewport-border: #E5E7EB;
   --color-card-bg: var(--color-sidebar-bg);            /* Pure white shortcut cards & widgets */
+  --color-user-msg-bg: var(--color-input-bg);
+  --color-user-msg-text: var(--color-text-active);
 
   /* UI Shadows (Subtle, clean drop shadows) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
@@ -106,6 +108,8 @@
   --color-viewport-text-muted: #9AA0A6;
   --color-viewport-border: #333639;
   --color-card-bg: var(--color-sidebar-bg);            /* Dark shortcut cards & widgets */
+  --color-user-msg-bg: #3C4043;
+  --color-user-msg-text: var(--color-text-active);
 
   /* Dark Theme Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);

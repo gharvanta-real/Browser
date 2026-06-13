@@ -111,6 +111,26 @@ export class BackendClient {
         });
     }
 
+    static async loadStateSnapshot() {
+        return this.request('/v1/state/snapshot', {
+            fallback: { snapshot: null }
+        });
+    }
+
+    static async saveStateSnapshot(snapshot) {
+        return this.request('/v1/state/snapshot', {
+            method: 'POST',
+            body: { snapshot },
+            fallback: { snapshot }
+        });
+    }
+
+    static async getAuditLog() {
+        return this.request('/v1/security/audit-log', {
+            fallback: { events: [] }
+        });
+    }
+
     static async request(path, options = {}) {
         const { fallback, method = 'GET', body } = options;
         try {

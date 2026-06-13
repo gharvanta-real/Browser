@@ -174,6 +174,9 @@ export class WebViewport extends BaseComponent {
         if (path === 'ai-setup') {
             return `<browser-ai-setup-page style="flex: 1; height: 100%; width: 100%; display: block; overflow: hidden;"></browser-ai-setup-page>`;
         }
+        if (path === 'security') {
+            return `<browser-security-page style="flex: 1; height: 100%; width: 100%; display: block; overflow: hidden;"></browser-security-page>`;
+        }
         if (path === 'passwords') {
             return `<browser-passwords-page style="flex: 1; height: 100%; width: 100%; display: block; overflow: hidden;"></browser-passwords-page>`;
         }
@@ -813,7 +816,54 @@ export class WebViewport extends BaseComponent {
                         text: (node.innerText || node.getAttribute('aria-label') || '').trim().slice(0, 160),
                         href: node.href
                     })).filter(item => item.text || item.href);
-                    return { url: location.href, title: document.title, text, headings, links };
+                    const selector = 'a[href],button,input,textarea,select,[role="button"],[role="link"],[contenteditable="true"],summary';
+                    const roleFor = (node) => node.getAttribute('role') || ({
+                        A: 'link',
+                        BUTTON: 'button',
+                        INPUT: node.type === 'submit' || node.type === 'button' ? 'button' : 'textbox',
+                        TEXTAREA: 'textbox',
+                        SELECT: 'combobox',
+                        SUMMARY: 'button'
+                    })[node.tagName] || 'control';
+                    const labelFor = (node) => {
+                        const id = node.getAttribute('id');
+                        const label = id ? document.querySelector('label[for="' + CSS.escape(id) + '"]') : null;
+                        return [
+                            node.getAttribute('aria-label'),
+                            node.getAttribute('title'),
+                            node.getAttribute('placeholder'),
+                            node.getAttribute('value'),
+                            label?.innerText,
+                            node.innerText,
+                            node.textContent,
+                            node.name,
+                            node.id
+                        ].find(value => value && String(value).trim()) || roleFor(node);
+                    };
+                    const interactives = Array.from(document.querySelectorAll(selector))
+                        .filter(node => {
+                            const rect = node.getBoundingClientRect();
+                            const style = getComputedStyle(node);
+                            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+                        })
+                        .slice(0, 120)
+                        .map((node, index) => {
+                            const rect = node.getBoundingClientRect();
+                            const label = String(labelFor(node)).replace(/\\s+/g, ' ').trim().slice(0, 180);
+                            return {
+                                id: 'ax-auto-' + index,
+                                role: roleFor(node),
+                                label,
+                                tag: node.tagName.toLowerCase(),
+                                href: node.href || null,
+                                inputType: node.type || null,
+                                x: Math.round(rect.left + rect.width / 2),
+                                y: Math.round(rect.top + rect.height / 2),
+                                width: Math.round(rect.width),
+                                height: Math.round(rect.height)
+                            };
+                        });
+                    return { url: location.href, title: document.title, text, headings, links, interactives };
                 })()`, true);
             } catch (error) {
                 return {
@@ -836,7 +886,21 @@ export class WebViewport extends BaseComponent {
                 level: node.tagName.toLowerCase(),
                 text: (node.innerText || '').trim().slice(0, 180)
             })),
-            links: []
+            links: [],
+            interactives: Array.from(this.querySelectorAll('a[href],button,input,textarea,select,[role="button"],[role="link"],[contenteditable="true"]')).slice(0, 120).map((node, index) => {
+                const rect = node.getBoundingClientRect();
+                const label = (node.getAttribute('aria-label') || node.getAttribute('title') || node.getAttribute('placeholder') || node.innerText || node.value || node.id || node.tagName).trim();
+                return {
+                    id: `ax-local-${index}`,
+                    role: node.getAttribute('role') || node.tagName.toLowerCase(),
+                    label,
+                    tag: node.tagName.toLowerCase(),
+                    x: Math.round(rect.left + rect.width / 2),
+                    y: Math.round(rect.top + rect.height / 2),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height)
+                };
+            })
         };
     }
 
@@ -850,9 +914,19 @@ export class WebViewport extends BaseComponent {
         const origin = this.originFromUrl(activeTab?.url);
 
         try {
+            command = await this.resolveCommandTarget(command);
             const evaluation = await BackendClient.evaluateAutomation(command, { origin, reason });
             const safety = evaluation.safety;
-            if (safety && safety.decision && safety.decision !== 'allow') {
+            if (safety?.decision === 'require_confirmation') {
+                const allowed = await window.aeroNative?.confirmSensitiveAction?.({
+                    title: `Allow Aero to ${command.type.replace(/_/g, ' ')}?`,
+                    detail: `${safety.reason || 'This action requires confirmation.'}\n\nReason: ${reason}`
+                });
+                if (!allowed) {
+                    this.logBrowserCommand(`Denied ${command.type}: user cancelled native confirmation`, 'warning');
+                    return { ok: false, evaluation, message: 'User denied native confirmation.' };
+                }
+            } else if (safety && safety.decision && safety.decision !== 'allow') {
                 this.logBrowserCommand(`Blocked ${command.type}: ${safety.reason || 'safety policy'}`, 'warning');
                 return { ok: false, evaluation, message: safety.reason || 'Blocked by safety policy.' };
             }
@@ -867,6 +941,57 @@ export class WebViewport extends BaseComponent {
             this.logBrowserCommand(`Command failed: ${message}`, 'warning');
             return { ok: false, message };
         }
+    }
+
+    async resolveCommandTarget(command) {
+        const target = command?.target;
+        if (!target || target.target_type !== 'accessibility_node') {
+            return command;
+        }
+
+        const snapshot = await this.captureActivePageSnapshot();
+        const wanted = this.normalizeTargetLabel(target.label || target.ax_node_id || '');
+        const candidates = snapshot.interactives || [];
+        const match = candidates
+            .map(item => ({ item, score: this.targetMatchScore(wanted, item) }))
+            .filter(entry => entry.score > 0)
+            .sort((a, b) => b.score - a.score)[0]?.item;
+
+        if (!match) {
+            throw new Error(`Could not find a visible element matching "${target.label}".`);
+        }
+
+        this.logBrowserCommand(`Resolved "${target.label}" to ${match.role} "${match.label}" at ${match.x},${match.y}`, 'success');
+        return {
+            ...command,
+            target: {
+                target_type: 'coordinates',
+                x: match.x,
+                y: match.y,
+                frame_id: null,
+                label: match.label || target.label
+            }
+        };
+    }
+
+    normalizeTargetLabel(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    }
+
+    targetMatchScore(wanted, item) {
+        const label = this.normalizeTargetLabel(item.label);
+        const role = this.normalizeTargetLabel(item.role);
+        const tag = this.normalizeTargetLabel(item.tag);
+        if (!wanted || !label) return 0;
+        if (label === wanted) return 100;
+        if (label.includes(wanted)) return 80;
+        if (wanted.includes(label) && label.length > 2) return 65;
+        const words = wanted.split(/\s+/).filter(Boolean);
+        const hits = words.filter(word => label.includes(word) || role.includes(word) || tag.includes(word)).length;
+        return hits ? hits * 12 : 0;
     }
 
     async executeCompiledCdp(calls, webview) {

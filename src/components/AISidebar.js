@@ -13,6 +13,55 @@ export class AISidebar extends BaseComponent {
         this.lastMoreMenuOpenState = false;
     }
 
+    formatMessageText(text) {
+        if (!text) return '';
+        // Escape HTML to prevent injection
+        let escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Inline formatting
+        escaped = escaped
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>');
+
+        // Process lines for lists and paragraphs
+        const lines = escaped.split('\n');
+        let inList = false;
+        let formattedLines = [];
+
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            // Match unordered lists starting with '*' or '-'
+            const listMatch = line.match(/^(\s*)[\*\-]\s+(.*)$/);
+            if (listMatch) {
+                if (!inList) {
+                    formattedLines.push('<ul style="margin: 4px 0; padding-left: 20px;">');
+                    inList = true;
+                }
+                formattedLines.push(`<li style="margin: 2px 0;">${listMatch[2]}</li>`);
+            } else {
+                if (inList) {
+                    formattedLines.push('</ul>');
+                    inList = false;
+                }
+                if (trimmed) {
+                    formattedLines.push(`<p style="margin: 4px 0;">${trimmed}</p>`);
+                } else {
+                    formattedLines.push('<div style="height: 8px;"></div>');
+                }
+            }
+        });
+
+        if (inList) {
+            formattedLines.push('</ul>');
+        }
+
+        return formattedLines.join('');
+    }
+
     connectedCallback() {
         window.AppState.subscribe(state => {
             // Toggle sidebar display dynamically (Chrome Side Panel logic)
@@ -120,31 +169,34 @@ export class AISidebar extends BaseComponent {
                     
                     if (idx < existingWrappers.length) {
                         const wrapper = existingWrappers[idx];
-                        const textEl = wrapper.querySelector('.chat-message p');
-                        
-                        // Update text in place to prevent animation re-triggers
-                        if (textEl && textEl.innerHTML !== msg.text) {
-                            textEl.innerHTML = msg.text;
-                        }
-                        
-                        // Check if card needs to be appended/rendered
-                        const cardContainer = wrapper.querySelector('.chat-message');
-                        if (msg.card && cardContainer && !cardContainer.querySelector('.confirmation-card')) {
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = this.renderConfirmationCard(msg.card);
-                            cardContainer.appendChild(tempDiv.firstElementChild);
-                            this.bindConfirmationCardListeners();
+                        const chatMessageEl = wrapper.querySelector('.chat-message');
+                        if (chatMessageEl) {
+                            const formattedText = this.formatMessageText(msg.text);
+                            const existingCard = chatMessageEl.querySelector('.confirmation-card');
+                            
+                            // Re-evaluate innerHTML but ignore cards
+                            const textPartOnly = chatMessageEl.innerHTML.split('<div class="confirmation-card"')[0].trim();
+                            
+                            // We compare formattedText (which has p/ul tags) with textPartOnly
+                            if (textPartOnly !== formattedText) {
+                                if (existingCard) {
+                                    chatMessageEl.innerHTML = formattedText;
+                                    chatMessageEl.appendChild(existingCard);
+                                } else {
+                                    chatMessageEl.innerHTML = `${formattedText}${msg.card ? this.renderConfirmationCard(msg.card) : ''}`;
+                                    if (msg.card) {
+                                        this.bindConfirmationCardListeners();
+                                    }
+                                }
+                            }
                         }
                     } else {
                         // New message: create and append (triggers fade-in animation once)
                         const wrapper = document.createElement('div');
                         wrapper.className = `chat-message-wrapper ${isAi ? 'ai-msg' : 'user-msg'}`;
                         wrapper.innerHTML = `
-                            <div class="message-avatar">
-                                ${isAi ? '<i class="hgi-stroke hgi-chat-bot"></i>' : 'A'}
-                            </div>
                             <div class="chat-message">
-                                <p style="margin: 0;">${msg.text || ''}</p>
+                                ${this.formatMessageText(msg.text || '')}
                                 ${msg.card ? this.renderConfirmationCard(msg.card) : ''}
                             </div>
                         `;
@@ -199,9 +251,6 @@ export class AISidebar extends BaseComponent {
                         typingIndicator = document.createElement('div');
                         typingIndicator.className = 'chat-message-wrapper ai-msg streaming-indicator-wrapper';
                         typingIndicator.innerHTML = `
-                            <div class="message-avatar">
-                                <i class="hgi-stroke hgi-chat-bot"></i>
-                            </div>
                             <div class="chat-message streaming">
                                 <span class="typing-indicator"></span>
                             </div>
@@ -404,11 +453,8 @@ export class AISidebar extends BaseComponent {
                 const isAi = msg.sender === 'ai';
                 return `
                     <div class="chat-message-wrapper ${isAi ? 'ai-msg' : 'user-msg'}">
-                        <div class="message-avatar">
-                            ${isAi ? '<i class="hgi-stroke hgi-chat-bot"></i>' : 'A'}
-                        </div>
                         <div class="chat-message">
-                            <p style="margin: 0;">${msg.text}</p>
+                            ${this.formatMessageText(msg.text)}
                             ${msg.card ? this.renderConfirmationCard(msg.card) : ''}
                         </div>
                     </div>
@@ -488,9 +534,6 @@ export class AISidebar extends BaseComponent {
                     ${logsHtml}
                     ${isStreaming && !logs.length ? `
                         <div class="chat-message-wrapper ai-msg">
-                            <div class="message-avatar">
-                                <i class="hgi-stroke hgi-chat-bot"></i>
-                            </div>
                             <div class="chat-message streaming">
                                 <span class="typing-indicator"></span>
                             </div>
@@ -1084,6 +1127,44 @@ export class AISidebar extends BaseComponent {
             };
         }
 
+        const fillLabelMatch = input.match(/^(?:fill|type)\s+(.+?)\s+(?:with|as)\s+(.+)$/i)
+            || input.match(/^type\s+(.+?)\s+in\s+(.+)$/i);
+        if (fillLabelMatch) {
+            const isTypeIn = /^type\s+/i.test(input) && /\s+in\s+/i.test(input);
+            const label = isTypeIn ? fillLabelMatch[2].trim() : fillLabelMatch[1].trim();
+            const textValue = isTypeIn ? fillLabelMatch[1].trim() : fillLabelMatch[2].trim();
+            return {
+                type: 'fill',
+                tab_id: activeTabId,
+                target: {
+                    target_type: 'accessibility_node',
+                    ax_node_id: label,
+                    label
+                },
+                text: textValue,
+                sensitive: /password|otp|card|cvv|pin/i.test(label),
+                needs_resolution: true
+            };
+        }
+
+        const clickLabelMatch = input.match(/^click\s+(.+)$/i);
+        if (clickLabelMatch) {
+            const label = clickLabelMatch[1].trim();
+            if (!/^\d{1,4}\s*,?\s+\d{1,4}$/.test(label)) {
+                return {
+                    type: 'click',
+                    tab_id: activeTabId,
+                    target: {
+                        target_type: 'accessibility_node',
+                        ax_node_id: label,
+                        label
+                    },
+                    button: 'left',
+                    needs_resolution: true
+                };
+            }
+        }
+
         return null;
     }
 
@@ -1184,14 +1265,14 @@ export class AISidebar extends BaseComponent {
                         state.chatHistory.push({ sender: 'ai', text: streamedText });
                     }
                 });
-                tokenIndex += 2;
+                tokenIndex++;
             } else {
                 clearInterval(interval);
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
             }
-        }, 80);
+        }, 45);
     }
 
     runHelpDemo() {
@@ -1212,14 +1293,14 @@ export class AISidebar extends BaseComponent {
                         state.chatHistory.push({ sender: 'ai', text: streamedText });
                     }
                 });
-                tokenIndex += 2;
+                tokenIndex++;
             } else {
                 clearInterval(interval);
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
             }
-        }, 80);
+        }, 45);
     }
 
     async runQADemo(query) {
@@ -1244,14 +1325,14 @@ export class AISidebar extends BaseComponent {
                         state.chatHistory.push({ sender: 'ai', text: streamedText });
                     }
                 });
-                tokenIndex += 2;
+                tokenIndex++;
             } else {
                 clearInterval(interval);
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
             }
-        }, 80);
+        }, 45);
     }
 
     cancelSimulatedTask() {
