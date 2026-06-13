@@ -1,0 +1,157 @@
+/* ==========================================
+   2. Curved Chrome-Style Tabs
+   ========================================== */
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 0 var(--spacing-md);
+  color: var(--color-text-inactive);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  border: 1px solid transparent;
+  border-bottom: none;
+  user-select: none;
+}
+
+/* Horizontal tabs spec */
+.tab-strip-horizontal .tab-item {
+  height: 22px;
+  min-width: 120px;
+  max-width: 160px;
+  margin: 0 3px;
+  border-radius: 8px;
+  font-size: var(--font-size-xs);
+}
+
+/* Inactive tabs divider lines */
+.tab-strip-horizontal .tab-item:not(.active):not(:last-of-type)::after {
+  display: none !important;
+}
+
+.tab-strip-horizontal .tab-item:hover:not(.active) {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-active);
+}
+
+.dark-theme .tab-strip-horizontal .tab-item:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Modern floating active tabs */
+.tab-strip-horizontal .tab-item.active {
+  background: var(--color-toolbar-bg);
+  color: var(--color-text-active);
+  z-index: 5;
+  border: 1px solid var(--color-border-light);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+/* Tab outward bottom curves */
+.tab-strip-horizontal .tab-item.active::before,
+.tab-strip-horizontal .tab-item.active::after {
+  display: none !important;
+}
+
+/* Dark theme active tab adjustment */
+.dark-theme .tab-strip-horizontal .tab-item.active {
+  border-color: var(--color-border-light);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Vertical tabs spec */
+.tab-strip-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 240px;
+  min-width: 240px;
+  background: var(--color-sidebar-bg);
+  border-right: 1px solid var(--color-border-light);
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.tab-strip-vertical .tab-item {
+  height: 32px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+  padding: 0 var(--spacing-sm);
+}
+
+.tab-strip-vertical .tab-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-strip-vertical .tab-item.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-active);
+}
+
+/* Suspended / Hibernated state */
+.tab-item.suspended {
+  opacity: 0.6;
+}
+.tab-item.suspended .tab-title {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.tab-favicon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: var(--font-size-xs);
+  flex-shrink: 0;
+}
+.tab-favicon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tab-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tab-close-btn {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.tab-item:hover .tab-close-btn {
+  opacity: 1;
+}
+
+.tab-close-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text-active);
+}
+
+.dark-theme .tab-close-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+

@@ -1,5 +1,7 @@
 import { BaseComponent } from './BaseComponent.js';
 import { BackendClient } from '../services/BackendClient.js';
+import { renderNewTabPage, bindNewTabPageEvents } from './NewTabPage.js';
+import { renderAccessibilityTreeOverlay, handleAgentActionHighlight } from './AgentOverlay.js';
 
 export class WebViewport extends BaseComponent {
     constructor() {
@@ -194,74 +196,7 @@ export class WebViewport extends BaseComponent {
     }
 
     renderNewTabPage() {
-        const blockedTrackers = window.AppState?.blockedTrackers || 0;
-        return `
-            <div class="aero-new-tab" style="padding: 24px var(--spacing-xxl); flex: 1; display: flex; flex-direction: column; justify-content: space-between; max-width: 960px; width: 100%; margin: 0 auto; box-sizing: border-box; color: var(--color-viewport-text);">
-                
-                <!-- Comet Top Navigation Row (Badge + Categories) -->
-                <div class="new-tab-top-row">
-                    <!-- Left: Tracker Shield Badge -->
-                    <div class="tracker-badge">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 11 2 2 4-4"></path></svg>
-                        ${blockedTrackers} ads and trackers blocked
-                    </div>
-                    <!-- Right: Search Categories -->
-                    <div class="search-categories">
-                        <span class="category-item active">Discover</span>
-                        <span class="category-item">Finance</span>
-                        <span class="category-item">Health</span>
-                        <span class="category-item">Academic</span>
-                        <span class="category-item">Patents</span>
-                    </div>
-                </div>
-
-                <!-- Centered Search Card Area -->
-                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0;">
-                    <!-- Giant elegant 'aero' logo text -->
-                    <div style="font-family: 'Outfit', var(--font-ui); font-size: 44px; font-weight: 500; letter-spacing: -1.5px; color: var(--color-viewport-text); margin-bottom: 24px; user-select: none;">aero</div>
-                    
-                    <div class="comet-search-card" style="margin: 0; width: 100%;">
-                        <textarea class="comet-search-textarea" placeholder="Type / for search modes"></textarea>
-                        
-                        <div class="comet-search-toolbar">
-                            <div class="comet-toolbar-left">
-                                <button class="comet-icon-btn" title="Add context">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                </button>
-                                <button class="comet-search-pill">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                    Search
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </button>
-                                <button class="comet-search-pill">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                                    Computer
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </button>
-                            </div>
-                            <div class="comet-toolbar-right">
-                                <button class="comet-model-pill">
-                                    Model
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </button>
-                                <button class="comet-icon-btn" title="Voice search">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                                </button>
-                                <button class="comet-submit-btn">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Comet Customize Button -->
-                <button class="comet-customize-btn" style="margin: 0 auto;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-                    Customize
-                </button>
-            </div>
-        `;
+        return renderNewTabPage(window.AppState?.blockedTrackers || 0);
     }
 
     renderPageContent(url) {
@@ -702,36 +637,7 @@ export class WebViewport extends BaseComponent {
     }
 
     renderAccessibilityTreeOverlay(url) {
-        let nodes = [];
-        
-        if (url.includes('flights.nifty.com')) {
-            nodes = [
-                { id: 'ax-1', role: 'heading', name: 'Nifty Flights Hero', x: '5%', y: '10%' },
-                { id: 'ax-2', role: 'textbox', name: 'From (Origin)', x: '5%', y: '45%' },
-                { id: 'ax-3', role: 'textbox', name: 'To (Destination)', x: '35%', y: '45%' },
-                { id: 'ax-4', role: 'button', name: 'Search Flights', x: '82%', y: '45%' },
-                { id: 'ax-5', role: 'card', name: 'Air Asia Cheapest ₹32,100', x: '5%', y: '73%' },
-                { id: 'ax-6', role: 'button', name: 'Book Flight', x: '82%', y: '78%' }
-            ];
-        } else {
-            nodes = [
-                { id: 'ax-1', role: 'heading', name: 'Browser Specs Heading', x: '5%', y: '5%' },
-                { id: 'ax-2', role: 'alert', name: 'Memory Status Indicator', x: '5%', y: '16%' }
-            ];
-        }
-
-        return `
-            <div class="ax-tree-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: var(--color-viewport-bg); opacity: 0.95; z-index: 10; pointer-events: none; font-family: var(--font-ui);">
-                <div class="ax-overlay-title" style="padding: var(--spacing-sm) var(--spacing-md); background: var(--color-window-bg); color: var(--color-input-focus-border); font-size: 10px; font-weight: var(--font-weight-semibold); border-bottom: 1px solid var(--color-viewport-border);">Layer 1 Accessibility Inspector (AXTree View)</div>
-                ${nodes.map(node => `
-                    <div class="ax-node-box" style="position: absolute; top: ${node.y}; left: ${node.x}; border: 1.5px dashed var(--color-input-focus-border); background: rgba(77, 144, 254, 0.05); border-radius: var(--border-radius-xs); padding: var(--spacing-xxs) var(--spacing-sm); display: flex; flex-direction: column; font-size: 9px; line-height: 1.25; color: var(--color-input-focus-border);">
-                        <span class="ax-node-role" style="font-weight: var(--font-weight-semibold); font-size: 8px;">${node.role.charAt(0).toUpperCase() + node.role.slice(1)}</span>
-                        <span class="ax-node-name" style="font-weight: var(--font-weight-medium); color: var(--color-viewport-text);">"${node.name}"</span>
-                        <span class="ax-node-id" style="color: var(--color-viewport-text-muted); opacity: 0.8;">id: ${node.id}</span>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+        return renderAccessibilityTreeOverlay(url);
     }
 
     afterRender() {
@@ -753,24 +659,7 @@ export class WebViewport extends BaseComponent {
             });
         });
 
-        const newTabSearch = this.querySelector('.comet-search-textarea');
-        const newTabSubmit = this.querySelector('.comet-submit-btn');
-        const runNewTabSearch = () => {
-            const value = newTabSearch?.value?.trim();
-            if (!value) return;
-            this.navigateFromViewport(this.resolveInput(value).url, this.resolveInput(value));
-        };
-        if (newTabSearch) {
-            newTabSearch.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    runNewTabSearch();
-                }
-            });
-        }
-        if (newTabSubmit) {
-            newTabSubmit.addEventListener('click', runNewTabSearch);
-        }
+        bindNewTabPageEvents(this);
     }
 
     bindChromiumWebviews() {
@@ -1109,42 +998,7 @@ export class WebViewport extends BaseComponent {
     }
 
     handleAgentActionHighlight(stepIndex) {
-        const cursor = this.querySelector('#agent-cursor');
-        if (!cursor) return;
-
-        let targetId = null;
-        let x = 0;
-        let y = 0;
-
-        if (stepIndex === 1) { 
-            x = 100; y = 100;
-        } else if (stepIndex === 2) { 
-            targetId = '#node-origin';
-            x = 150; y = 240;
-        } else if (stepIndex === 4) { 
-            targetId = '#node-cheapest-flight';
-            x = 400; y = 430;
-        } else if (stepIndex === 6) { 
-            targetId = '#node-book-btn';
-            x = 840; y = 430;
-        }
-
-        if (targetId) {
-            const targetEl = this.querySelector(targetId);
-            if (targetEl) {
-                targetEl.style.borderColor = '#1A73E8';
-                targetEl.style.boxShadow = '0 0 0 2px rgba(26, 115, 232, 0.2)';
-                targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        }
-
-        cursor.style.display = 'block';
-        cursor.style.transform = `translate(${x}px, ${y}px)`;
-        
-        cursor.style.background = 'rgba(26, 115, 232, 0.9)';
-        setTimeout(() => {
-            cursor.style.background = 'rgba(77, 144, 254, 0.6)';
-        }, 300);
+        handleAgentActionHighlight(this, stepIndex);
     }
 
     showViewportContextMenu(x, y, webview) {

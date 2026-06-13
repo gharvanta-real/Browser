@@ -1,0 +1,110 @@
+/* ==========================================
+   7. Transaction Auth Card
+   ========================================== */
+
+.confirmation-card {
+  width: 100%;
+  background: var(--color-window-bg);
+  border: 1px solid #E81123;
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--spacing-md);
+}
+
+.confirmation-card-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(232, 17, 35, 0.05);
+  border-bottom: 1px solid rgba(232, 17, 35, 0.1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.confirmation-card-header h3 {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: #E81123;
+  font-weight: var(--font-weight-semibold);
+}
+
+.confirmation-body {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.permission-tier-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  padding: 1px 6px;
+  border-radius: var(--border-radius-xs);
+  background: rgba(232, 17, 35, 0.05);
+  color: #E81123;
+  border: 1px solid rgba(232, 17, 35, 0.1);
+}
+
+.permission-description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.biometric-prompt-box {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.biometric-prompt-box:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-input-focus-border);
+}
+
+.confirmation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: rgba(0, 0, 0, 0.05);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.btn-confirm-deny {
+  height: 28px;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-deny {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border-light);
+}
+
+.btn-deny:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-allow-sensitive {
+  background: #E81123;
+  color: #FFFFFF;
+}
+
+.btn-allow-sensitive:hover {
+  background: #D80F20;
+}
+
+

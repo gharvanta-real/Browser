@@ -1,0 +1,448 @@
+/* ==========================================
+   10. Responsive Layouts & Media Queries
+   ========================================== */
+
+/* Bookmarks Page Layout */
+.aero-bookmarks-page {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  background: var(--color-viewport-bg);
+  color: var(--color-text-active);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+
+.bookmarks-page-left-sidebar {
+  width: 220px;
+  border-right: 1px solid var(--color-viewport-border);
+  background: var(--color-window-bg);
+  padding: var(--spacing-md) var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.bookmarks-main-content {
+  flex: 1;
+  padding: 40px var(--spacing-xl);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 320px;
+}
+
+.bookmarks-right-sidebar {
+  width: 280px;
+  border-left: 1px solid var(--color-viewport-border);
+  background: var(--color-sidebar-bg);
+  padding: 40px var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+/* Settings Page Layout */
+.settings-page-content {
+  min-width: 320px;
+}
+
+/* History Page Layout */
+.history-main-content {
+  min-width: 320px;
+}
+
+/* Downloads Page Layout */
+.downloads-main-content {
+  min-width: 320px;
+}
+
+/* Responsive Viewport Breakpoints */
+@media (max-width: 1024px) {
+  .bookmarks-right-sidebar,
+  .history-right-sidebar,
+  .downloads-right-sidebar,
+  .settings-page-right-sidebar,
+  .reading-list-right-sidebar {
+    display: none !important; /* Hide sidebar widgets on smaller screen widths */
+  }
+}
+
+@media (max-width: 768px) {
+  .bookmarks-page-left-sidebar,
+  .settings-page-sidebar,
+  .reading-list-left-sidebar {
+    display: none !important; /* Hide left sidebar navigation menu on tablets/phones */
+  }
+}
+
+/* Comet-style Search Page Enhancements */
+.new-tab-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -15px;
+}
+
+.tracker-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(0, 150, 136, 0.06);
+  border: 1px solid rgba(0, 150, 136, 0.15) !important;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #00796b;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.dark-theme .tracker-badge {
+  background: rgba(0, 150, 136, 0.12);
+  border-color: rgba(0, 150, 136, 0.25) !important;
+  color: #80cbc4;
+}
+
+.tracker-badge:hover {
+  background: rgba(0, 150, 136, 0.1);
+}
+
+.dark-theme .tracker-badge:hover {
+  background: rgba(0, 150, 136, 0.18);
+}
+
+.search-categories {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.category-item {
+  color: var(--color-viewport-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.category-item:hover {
+  color: var(--color-viewport-text);
+}
+
+.category-item.active {
+  color: var(--color-viewport-text);
+  font-weight: 600;
+}
+
+/* Comet Search Card Container */
+.comet-search-card {
+  background: var(--color-input-bg);
+  border: none !important;
+  border-radius: 20px;
+  padding: 18px 24px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.comet-search-card:focus-within {
+  border: none !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06), 0 2px 12px rgba(0, 0, 0, 0.03);
+}
+
+.dark-theme .comet-search-card {
+  background: var(--color-sidebar-bg) !important;
+  border: none !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Textarea input */
+.comet-search-textarea {
+  border: none;
+  resize: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-family: var(--font-ui);
+  color: var(--color-viewport-text);
+  width: 100%;
+  height: 48px;
+  line-height: var(--line-height-normal);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.comet-search-textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+
+/* Toolbar inside search box */
+.comet-search-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: none !important;
+  padding-top: 4px;
+}
+
+.comet-toolbar-left,
+.comet-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pill buttons in toolbar */
+.comet-search-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none !important;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f1f3f4;
+  color: #3c4043;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.comet-search-pill:hover {
+  background: #e8eaed;
+  color: #1f2937;
+}
+
+.dark-theme .comet-search-pill {
+  background: #3c4043;
+  color: #e8eaed;
+}
+
+.dark-theme .comet-search-pill:hover {
+  background: #4f5357;
+  color: #ffffff;
+}
+
+.comet-search-pill svg,
+.comet-search-pill i {
+  color: inherit;
+  flex-shrink: 0;
+}
+
+/* Model Dropdown Button (Transparent bg) */
+.comet-model-pill {
+  background: transparent !important;
+  border: none !important;
+  color: #5f6368;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.comet-model-pill:hover {
+  color: #1f2937;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dark-theme .comet-model-pill {
+  color: #9aa0a6;
+}
+
+.dark-theme .comet-model-pill:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.comet-model-pill svg {
+  color: inherit;
+}
+
+/* Plain icon buttons in toolbar */
+.comet-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none !important;
+  background: transparent !important;
+  color: #5f6368;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.comet-icon-btn:hover {
+  background: #f1f3f4 !important;
+  color: #1f2937;
+}
+
+.dark-theme .comet-icon-btn {
+  color: #9aa0a6;
+}
+
+.dark-theme .comet-icon-btn:hover {
+  background: #3c4043 !important;
+  color: #ffffff;
+}
+
+/* Submit button */
+.comet-submit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #808080 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.comet-submit-btn:hover {
+  background: #5f6368 !important;
+  transform: scale(1.05);
+}
+
+.dark-theme .comet-submit-btn {
+  background: #808080 !important;
+  color: #FFFFFF !important;
+}
+
+.dark-theme .comet-submit-btn:hover {
+  background: #9aa0a6 !important;
+}
+
+/* Customize pill button at the bottom */
+.comet-customize-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--color-card-bg);
+  color: var(--color-viewport-text-muted);
+  cursor: pointer;
+  margin: 20px auto 0;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.comet-customize-btn:hover {
+  background: var(--color-hover-bg);
+  color: var(--color-viewport-text);
+  border-color: var(--color-border-dark);
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 768px) {
+  .bookmarks-main-content,
+  .settings-page-content,
+  .history-main-content,
+  .downloads-main-content,
+  .reading-list-main-content {
+    padding: 20px var(--spacing-md) !important;
+  }
+}
+
+/* Reading List Page Layout */
+.aero-reading-list-page {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  background: var(--color-viewport-bg);
+  color: var(--color-text-active);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+
+.reading-list-left-sidebar {
+  width: 220px;
+  border-right: 1px solid var(--color-viewport-border);
+  background: var(--color-window-bg);
+  padding: var(--spacing-md) var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.reading-list-main-content {
+  flex: 1;
+  padding: 40px var(--spacing-xl);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 320px;
+}
+
+.reading-list-right-sidebar {
+  width: 280px;
+  border-left: 1px solid var(--color-viewport-border);
+  background: var(--color-sidebar-bg);
+  padding: 40px var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.reading-list-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-viewport-border);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.reading-list-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  background-color: var(--color-hover-bg) !important;
+}
+
+.reading-list-card.selected-card {
+  background: rgba(77, 144, 254, 0.04) !important;
+  border-color: rgba(77, 144, 254, 0.3) !important;
+}
+
+.reading-thumbnail-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+

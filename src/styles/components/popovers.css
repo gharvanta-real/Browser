@@ -1,0 +1,164 @@
+/* ==========================================
+   9. Browser System Pages & Menu Popover Dropdown
+   ========================================== */
+
+/* Menu Popover Dropdown */
+.menu-popover-dropdown {
+  animation: scaleUp var(--transition-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+  border-color: var(--color-border-light) !important;
+}
+
+.menu-action-row:hover {
+  background-color: var(--color-hover-bg);
+  color: var(--color-text-active);
+}
+
+.menu-shortcut-item:hover {
+  background-color: var(--color-hover-bg);
+}
+
+.menu-shortcut-item i {
+  transition: color var(--transition-fast);
+}
+
+.menu-shortcut-item:hover i {
+  color: var(--color-text-active) !important;
+}
+
+/* Settings Page Navigation & Rows */
+.settings-page-nav-item:hover {
+  background-color: var(--color-hover-bg);
+  color: var(--color-text-active);
+}
+
+.settings-page-nav-item.active {
+  background-color: var(--color-active-bg) !important;
+  color: var(--color-text-active) !important;
+}
+
+.settings-item-row {
+  transition: background var(--transition-fast);
+}
+
+.settings-item-row:hover {
+  background-color: var(--color-hover-bg) !important;
+}
+
+/* Toggle Switches */
+.switch-toggle input:checked + .slider-round {
+  background-color: var(--color-input-focus-border) !important;
+}
+
+.switch-toggle input:focus + .slider-round {
+  box-shadow: 0 0 1px var(--color-input-focus-border);
+}
+
+.switch-toggle input:checked + .slider-round:before {
+  transform: translateX(14px);
+}
+
+.slider-round:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.slider-round {
+  transition: background-color var(--transition-fast);
+}
+
+.switch-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* History Page Filters & Rows */
+.filter-pill {
+  transition: all var(--transition-fast);
+}
+
+.filter-pill:hover {
+  border-color: var(--color-input-focus-border) !important;
+  opacity: 0.9;
+}
+
+.history-item-row:hover {
+  background-color: var(--color-hover-bg) !important;
+}
+
+.delete-history-btn:hover {
+  background-color: var(--color-hover-bg) !important;
+  color: #E81123 !important;
+}
+
+/* Downloads Card Hover Action Buttons */
+.download-item-card {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.download-item-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-action:hover {
+  background-color: var(--color-hover-bg) !important;
+  border-color: var(--color-border-dark) !important;
+}
+
+.open-folder-btn:hover,
+.open-file-btn:hover,
+.delete-completed-btn:hover {
+  background-color: var(--color-hover-bg) !important;
+  color: var(--color-text-active) !important;
+}
+
+.delete-completed-btn:hover {
+  color: #E81123 !important;
+}
+
+/* Bookmarks Rows and Preview Card */
+.bookmarks-nav-item:hover {
+  background-color: var(--color-hover-bg);
+  color: var(--color-text-active);
+}
+
+.bookmarks-nav-item.active {
+  background-color: var(--color-active-bg) !important;
+  color: var(--color-text-active) !important;
+}
+
+.bookmark-row:hover {
+  background-color: var(--color-hover-bg) !important;
+}
+
+.bookmark-row.selected-row {
+  background-color: rgba(77, 144, 254, 0.08) !important;
+}
+
+.btn-preview-action {
+  transition: opacity var(--transition-fast);
+}
+
+.btn-preview-action:hover {
+  opacity: 0.9;
+}
+
+.btn-preview-action.delete-bookmark-btn:hover {
+  background-color: #E81123 !important;
+  color: #FFFFFF !important;
+}
+
+.star-toggle-btn:hover {
+  background-color: var(--color-hover-bg) !important;
+  color: #FFBA00 !important;
+}
+

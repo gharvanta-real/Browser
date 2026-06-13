@@ -1,0 +1,43 @@
+/* components.css */
+@import url('./tokens.css');
+
+/* ==========================================
+   1. macOS Window Dots Controls
+   ========================================== */
+.win-caption-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.win-btn {
+  width: 46px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none !important;
+  color: var(--color-text-inactive);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.win-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-active);
+}
+
+.dark-theme .win-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-active);
+}
+
+.win-btn.win-close:hover {
+  background: #E81123 !important;
+  color: #FFFFFF !important;
+}
+
+

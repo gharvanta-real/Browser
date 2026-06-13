@@ -1,0 +1,87 @@
+/* ==========================================
+   3. Bookmarks & Left Sidebar
+   ========================================== */
+
+/* Bookmarks Items */
+.bookmark-item {
+  transition: background var(--transition-fast), color var(--transition-fast);
+  color: #3C4043;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  height: 24px;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+
+.dark-theme .bookmark-item {
+  color: #E8EAED;
+}
+
+.bookmark-item i,
+.bookmark-item svg,
+.bookmark-item img {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.bookmark-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1F2937;
+}
+
+.dark-theme .bookmark-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+/* Left Sidebar Items Active Highlights */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 6px var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-inactive);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-item i {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--color-text-active);
+}
+
+.dark-theme .sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sidebar-item.active {
+  background: #EAECEF !important; /* Soft grey capsule background */
+  color: var(--color-text-active) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.dark-theme .sidebar-item.active {
+  background: #32353A !important; /* Charcoal dark capsule */
+  color: var(--color-text-active) !important;
+}
+
+

@@ -1,0 +1,140 @@
+/* ==========================================
+   5. Omnibox Autocomplete suggestions
+   ========================================== */
+.omnibox-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+  position: relative;
+}
+
+.omnibox-input-group {
+  height: 32px;
+  max-width: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0 12px;
+  gap: 8px;
+  transition: background var(--transition-fast);
+  background: var(--color-input-bg);
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.omnibox-input-group:hover {
+  background: #e8eaed;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dark-theme .omnibox-input-group:hover {
+  background: #2b2d30;
+}
+
+.omnibox-input-group:focus-within {
+  background: #e2e4e7;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dark-theme .omnibox-input-group:focus-within {
+  background: #323538;
+}
+
+.omnibox-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-width: 100%;
+  background: var(--color-toolbar-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-lg);
+  margin-top: 4px;
+  box-shadow: var(--shadow-lg);
+  display: none;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.omnibox-dropdown.visible {
+  display: block;
+}
+
+.suggestion-section-title {
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xxs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-inactive);
+  opacity: 0.8;
+}
+
+.suggestion-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.suggestion-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.dark-theme .suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.suggestion-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-active);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-url {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-inactive);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.suggestion-item.suggestion-ai .suggestion-title {
+  color: var(--color-input-focus-border);
+}
+
+/* Badges */
+.search-badge {
+  font-size: var(--font-size-xxs);
+  font-weight: var(--font-weight-bold);
+  padding: 1px var(--spacing-sm);
+  border-radius: var(--border-radius-pill);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text-inactive);
+}
+
+.search-badge-ai {
+  border-color: var(--color-input-focus-border);
+  color: var(--color-input-focus-border);
+  background: color-mix(in srgb, var(--color-input-focus-border) 8%, transparent);
+}
+
+.search-badge-local {
+  border-color: var(--color-border-hover);
+  color: var(--color-text-muted);
+}
+
+

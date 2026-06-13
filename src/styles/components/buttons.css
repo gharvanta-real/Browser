@@ -1,0 +1,69 @@
+/* ==========================================================================
+   11. Universal Page Button Hover & Transition Feedbacks (Unified System)
+   ========================================================================== */
+.aero-settings-page button,
+.aero-history-page button,
+.aero-bookmarks-page button,
+.aero-downloads-page button,
+.aero-reading-list-page button,
+.aero-passwords-page button,
+.aero-payments-page button,
+.aero-addresses-page button,
+.aero-tools-page button,
+.workspaces-page-layout button,
+.settings-overlay button {
+  transition: background var(--transition-fast), opacity var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+}
+
+.aero-settings-page button:hover,
+.aero-history-page button:hover,
+.aero-bookmarks-page button:hover,
+.aero-downloads-page button:hover,
+.aero-reading-list-page button:hover,
+.aero-passwords-page button:hover,
+.aero-payments-page button:hover,
+.aero-addresses-page button:hover,
+.aero-tools-page button:hover,
+.workspaces-page-layout button:hover,
+.settings-overlay button:hover {
+  opacity: 0.92;
+  filter: brightness(0.95);
+}
+
+.dark-theme .aero-settings-page button:hover,
+.dark-theme .aero-history-page button:hover,
+.dark-theme .aero-bookmarks-page button:hover,
+.dark-theme .aero-downloads-page button:hover,
+.dark-theme .aero-reading-list-page button:hover,
+.dark-theme .aero-passwords-page button:hover,
+.dark-theme .aero-payments-page button:hover,
+.dark-theme .aero-addresses-page button:hover,
+.dark-theme .aero-tools-page button:hover,
+.dark-theme .workspaces-page-layout button:hover,
+.dark-theme .settings-overlay button:hover {
+  filter: brightness(1.08);
+}
+
+/* Omnibox URL Loading Slider */
+@keyframes loading-slider {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.omnibox-loading-slider {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent, var(--color-input-focus-border) 50%, transparent);
+  background-size: 200% 100%;
+  animation: loading-slider 1.5s infinite linear;
+  pointer-events: none;
+  z-index: 2;
+}
+
