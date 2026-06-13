@@ -114,6 +114,7 @@ export class WebViewport extends BaseComponent {
         const isNewTab = tab.url.includes('newtab.internal') || tab.url === '' || tab.title === 'New Tab';
         const isInternalPage = tab.url.startsWith('aero://') || tab.url.startsWith('browser://');
         const isNativeWeb = this.shouldUseNativeWebview(tab.url);
+        const loadError = tab.loadError;
         // Disabling duplicate URL webpage-header tray (redundant with the main Omnibox/address bar)
         const showHeader = false;
         const activeInternalHtml = isNativeWeb ? '' : (
@@ -137,12 +138,38 @@ export class WebViewport extends BaseComponent {
             <div class="webpage-content-area" id="web-content-scroll" style="flex: 1; overflow-y: auto; background: ${isNewTab ? 'var(--color-toolbar-bg)' : 'var(--color-viewport-bg)'}; color: var(--color-viewport-text); position: relative; font-family: var(--font-ui); display: flex; flex-direction: column;">
                 ${this.state.runtimeEngine === 'chromium' ? this.renderPersistentWebviews() : ''}
                 ${activeInternalHtml}
+                ${loadError && isNativeWeb ? this.renderLoadError(loadError, tab.url) : ''}
                 
                 <!-- Accessibility Tree Overlay (Layer 1 AXTree view) -->
                 ${showAiView ? this.renderAccessibilityTreeOverlay(tab.url) : ''}
                 
-                <!-- Simulated Agent Action Glow overlay -->
-                <div id="agent-cursor" class="agent-cursor-sim" style="position: absolute; width: 14px; height: 14px; background: rgba(77, 144, 254, 0.6); border: 2px solid #FFFFFF; border-radius: 50%; display: none; pointer-events: none; z-index: 999; box-shadow: 0 0 8px rgba(77, 144, 254, 0.8); transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
+                <!-- Live AI control cursor -->
+                <div id="agent-cursor" class="agent-cursor-sim" style="position: absolute; left: 0; top: 0; width: 16px; height: 16px; background: rgba(77, 144, 254, 0.78); border: 2px solid #FFFFFF; border-radius: 50%; display: none; pointer-events: none; z-index: 9999; box-shadow: 0 0 0 0 rgba(77,144,254,0.45), 0 0 12px rgba(77, 144, 254, 0.9); transform: translate3d(20px, 20px, 0); transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, width 0.12s ease, height 0.12s ease;"></div>
+                <div id="agent-typing-bubble" style="position: absolute; left: 0; top: 0; display: none; pointer-events: none; z-index: 9998; transform: translate3d(36px, 36px, 0); background: rgba(20, 28, 46, 0.88); color: #fff; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 600; box-shadow: var(--shadow-md);">AI typing</div>
+            </div>
+        `;
+    }
+
+    renderLoadError(error, url) {
+        const safeUrl = this.escapeHtml(url || error.url || '');
+        const safeDescription = this.escapeHtml(error.description || 'This page could not be loaded.');
+        const safeCode = this.escapeHtml(String(error.code || ''));
+        return `
+            <div class="webview-error-overlay" style="position: absolute; inset: 0; z-index: 40; background: var(--color-viewport-bg); color: var(--color-viewport-text); display: flex; align-items: center; justify-content: center; padding: 32px;">
+                <div style="max-width: 560px; width: 100%; background: var(--color-card-bg); border: 1px solid var(--color-viewport-border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-md);">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(217,48,37,0.1); color: #D93025; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;">
+                        <i class="hgi-stroke hgi-alert-circle" style="font-size: 22px;"></i>
+                    </div>
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 700;">This site can't be reached</h2>
+                    <p style="margin: 8px 0 0; font-size: 13px; color: var(--color-viewport-text-muted); line-height: 1.55; overflow-wrap: anywhere;">${safeUrl}</p>
+                    <div style="margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--color-viewport-bg); border: 1px solid var(--color-viewport-border); font-size: 12px; color: var(--color-viewport-text-muted);">
+                        ${safeDescription}${safeCode ? ` <span style="opacity: .7;">(${safeCode})</span>` : ''}
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 18px;">
+                        <button id="retry-load-btn" style="background: var(--color-input-focus-border); color: #fff; border: none; border-radius: 6px; padding: 9px 14px; font-size: 12px; font-weight: 650; cursor: pointer;">Retry</button>
+                        <button id="open-search-fallback-btn" style="background: transparent; color: var(--color-viewport-text); border: 1px solid var(--color-viewport-border); border-radius: 6px; padding: 9px 14px; font-size: 12px; font-weight: 650; cursor: pointer;">Search this address</button>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -663,6 +690,30 @@ export class WebViewport extends BaseComponent {
         });
 
         bindNewTabPageEvents(this);
+
+        const retryBtn = this.querySelector('#retry-load-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                const activeId = window.AppState?.activeTabId;
+                const webview = this.querySelector(`.chromium-webview[data-tab-id="${activeId}"]`) || window.AeroActiveWebview;
+                window.AppState.update(state => {
+                    const tab = state.tabs.find(item => item.id === activeId);
+                    if (tab) tab.loadError = null;
+                });
+                try {
+                    if (webview) webview.reload();
+                } catch {}
+            });
+        }
+
+        const searchFallbackBtn = this.querySelector('#open-search-fallback-btn');
+        if (searchFallbackBtn) {
+            searchFallbackBtn.addEventListener('click', () => {
+                const activeTab = window.AppState?.tabs?.find(tab => tab.id === window.AppState.activeTabId);
+                const query = activeTab?.url || '';
+                if (query) this.navigateFromViewport(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
+            });
+        }
     }
 
     bindChromiumWebviews() {
@@ -675,14 +726,37 @@ export class WebViewport extends BaseComponent {
             webview.addEventListener('did-start-loading', () => {
                 window.AppState.update(state => {
                     const targetTab = state.tabs.find(tab => tab.id === tabId);
-                    if (targetTab) targetTab.loading = true;
+                    if (targetTab) {
+                        targetTab.loading = true;
+                        targetTab.loadError = null;
+                    }
                 });
             });
 
             webview.addEventListener('did-stop-loading', () => {
                 window.AppState.update(state => {
                     const targetTab = state.tabs.find(tab => tab.id === tabId);
-                    if (targetTab) targetTab.loading = false;
+                    if (targetTab) {
+                        targetTab.loading = false;
+                        targetTab.canGoBack = typeof webview.canGoBack === 'function' ? webview.canGoBack() : false;
+                        targetTab.canGoForward = typeof webview.canGoForward === 'function' ? webview.canGoForward() : false;
+                    }
+                });
+            });
+
+            webview.addEventListener('did-fail-load', (event) => {
+                if (event.errorCode === -3 || event.isMainFrame === false) return;
+                window.AppState.update(state => {
+                    const targetTab = state.tabs.find(tab => tab.id === tabId);
+                    if (targetTab) {
+                        targetTab.loading = false;
+                        targetTab.loadError = {
+                            code: event.errorCode,
+                            description: event.errorDescription || 'Network error',
+                            url: event.validatedURL || targetTab.url
+                        };
+                        targetTab.title = 'Page failed to load';
+                    }
                 });
             });
 
@@ -700,6 +774,30 @@ export class WebViewport extends BaseComponent {
                 window.AppState.update(state => {
                     const targetTab = state.tabs.find(tab => tab.id === tabId);
                     if (targetTab) targetTab.title = title;
+                });
+            });
+
+            webview.addEventListener('page-favicon-updated', (event) => {
+                const favicon = (event.favicons || [])[0];
+                if (!favicon) return;
+                window.AppState.update(state => {
+                    const targetTab = state.tabs.find(tab => tab.id === tabId);
+                    if (targetTab) targetTab.favicon = favicon;
+                });
+            });
+
+            webview.addEventListener('render-process-gone', (event) => {
+                window.AppState.update(state => {
+                    const targetTab = state.tabs.find(tab => tab.id === tabId);
+                    if (targetTab) {
+                        targetTab.loading = false;
+                        targetTab.loadError = {
+                            code: 'render-process-gone',
+                            description: event.reason || 'The page renderer stopped unexpectedly.',
+                            url: targetTab.url
+                        };
+                        targetTab.title = 'Page crashed';
+                    }
                 });
             });
 
@@ -762,6 +860,7 @@ export class WebViewport extends BaseComponent {
             if (targetTab && targetTab.url !== url) {
                 targetTab.url = url;
                 targetTab.isSearchResult = this.parseSearchUrl(url) !== null;
+                targetTab.loadError = null;
             }
         });
     }
@@ -775,6 +874,8 @@ export class WebViewport extends BaseComponent {
                 webview.goBack();
             } else if (command === 'forward' && webview.canGoForward()) {
                 webview.goForward();
+            } else if (command === 'stop') {
+                webview.stop();
             } else if (command === 'reload') {
                 webview.reload();
             }
@@ -793,7 +894,9 @@ export class WebViewport extends BaseComponent {
                 hibernated: false,
                 active: true,
                 scrollY: 0,
-                workspace: state.activeWorkspace || 'Default'
+                workspace: state.activeWorkspace || 'Default',
+                loading: false,
+                loadError: null
             });
             state.activeTabId = newId;
         });
@@ -803,6 +906,19 @@ export class WebViewport extends BaseComponent {
         const activeId = window.AppState?.activeTabId;
         const activeTab = window.AppState?.tabs?.find(tab => tab.id === activeId);
         const webview = this.querySelector(`.chromium-webview[data-tab-id="${activeId}"]`) || window.AeroActiveWebview;
+        if (window.AppState?.aiAllowPageReading === false) {
+            return {
+                url: activeTab?.url || '',
+                title: activeTab?.title || 'Active page',
+                text: '',
+                headings: [],
+                links: [],
+                interactives: [],
+                forms: [],
+                restricted: true,
+                error: 'AI page reading is disabled in Settings.'
+            };
+        }
 
         if (webview && this.shouldUseNativeWebview(activeTab?.url) && typeof webview.executeJavaScript === 'function') {
             try {
@@ -816,7 +932,7 @@ export class WebViewport extends BaseComponent {
                         text: (node.innerText || node.getAttribute('aria-label') || '').trim().slice(0, 160),
                         href: node.href
                     })).filter(item => item.text || item.href);
-                    const selector = 'a[href],button,input,textarea,select,[role="button"],[role="link"],[contenteditable="true"],summary';
+                    const selector = 'a[href],button,input,textarea,select,[role="button"],[role="link"],[role="textbox"],[role="combobox"],[contenteditable="true"],summary';
                     const roleFor = (node) => node.getAttribute('role') || ({
                         A: 'link',
                         BUTTON: 'button',
@@ -827,15 +943,25 @@ export class WebViewport extends BaseComponent {
                     })[node.tagName] || 'control';
                     const labelFor = (node) => {
                         const id = node.getAttribute('id');
-                        const label = id ? document.querySelector('label[for="' + CSS.escape(id) + '"]') : null;
+                        const escapeCss = window.CSS?.escape || ((value) => String(value).replace(/["\\\\]/g, '\\\\$&'));
+                        const label = id ? document.querySelector('label[for="' + escapeCss(id) + '"]') : null;
+                        const parentLabel = node.closest('label');
+                        const describedBy = (node.getAttribute('aria-describedby') || '')
+                            .split(/\\s+/)
+                            .map(id => id ? document.getElementById(id)?.innerText : '')
+                            .filter(Boolean)
+                            .join(' ');
                         return [
                             node.getAttribute('aria-label'),
                             node.getAttribute('title'),
                             node.getAttribute('placeholder'),
                             node.getAttribute('value'),
                             label?.innerText,
+                            parentLabel?.innerText,
+                            describedBy,
                             node.innerText,
                             node.textContent,
+                            node.getAttribute('autocomplete'),
                             node.name,
                             node.id
                         ].find(value => value && String(value).trim()) || roleFor(node);
@@ -857,13 +983,34 @@ export class WebViewport extends BaseComponent {
                                 tag: node.tagName.toLowerCase(),
                                 href: node.href || null,
                                 inputType: node.type || null,
+                                name: node.name || null,
+                                idAttr: node.id || null,
+                                placeholder: node.getAttribute('placeholder') || null,
+                                autocomplete: node.getAttribute('autocomplete') || null,
+                                valuePreview: /password|otp|pin|cvv|card/i.test(node.type || node.name || node.id || label) ? '' : String(node.value || '').slice(0, 80),
+                                disabled: Boolean(node.disabled || node.getAttribute('aria-disabled') === 'true'),
+                                required: Boolean(node.required || node.getAttribute('aria-required') === 'true'),
                                 x: Math.round(rect.left + rect.width / 2),
                                 y: Math.round(rect.top + rect.height / 2),
                                 width: Math.round(rect.width),
                                 height: Math.round(rect.height)
                             };
                         });
-                    return { url: location.href, title: document.title, text, headings, links, interactives };
+                    const forms = Array.from(document.forms).slice(0, 20).map((form, index) => ({
+                        id: form.id || form.name || 'form-' + index,
+                        action: form.action || location.href,
+                        method: (form.method || 'get').toLowerCase(),
+                        fields: Array.from(form.elements).slice(0, 80).map(field => ({
+                            tag: field.tagName?.toLowerCase?.() || '',
+                            type: field.type || '',
+                            name: field.name || '',
+                            id: field.id || '',
+                            placeholder: field.getAttribute?.('placeholder') || '',
+                            autocomplete: field.getAttribute?.('autocomplete') || '',
+                            required: Boolean(field.required)
+                        }))
+                    }));
+                    return { url: location.href, title: document.title, text, headings, links, interactives, forms };
                 })()`, true);
             } catch (error) {
                 return {
@@ -887,6 +1034,7 @@ export class WebViewport extends BaseComponent {
                 text: (node.innerText || '').trim().slice(0, 180)
             })),
             links: [],
+            forms: [],
             interactives: Array.from(this.querySelectorAll('a[href],button,input,textarea,select,[role="button"],[role="link"],[contenteditable="true"]')).slice(0, 120).map((node, index) => {
                 const rect = node.getBoundingClientRect();
                 const label = (node.getAttribute('aria-label') || node.getAttribute('title') || node.getAttribute('placeholder') || node.innerText || node.value || node.id || node.tagName).trim();
@@ -908,6 +1056,9 @@ export class WebViewport extends BaseComponent {
         if (!command?.type) {
             return { ok: false, message: 'Missing browser command.' };
         }
+        if (window.AppState?.aiControlEnabled === false || window.AppState?.aiAllowActionExecution === false) {
+            return { ok: false, message: 'AI webpage control is disabled in Settings.' };
+        }
 
         const activeId = window.AppState?.activeTabId;
         const activeTab = window.AppState?.tabs?.find(tab => tab.id === activeId);
@@ -917,7 +1068,7 @@ export class WebViewport extends BaseComponent {
             command = await this.resolveCommandTarget(command);
             const evaluation = await BackendClient.evaluateAutomation(command, { origin, reason });
             const safety = evaluation.safety;
-            if (safety?.decision === 'require_confirmation') {
+            if (safety?.decision === 'require_confirmation' && window.AppState?.aiRequireConfirmation !== false) {
                 const allowed = await window.aeroNative?.confirmSensitiveAction?.({
                     title: `Allow Aero to ${command.type.replace(/_/g, ' ')}?`,
                     detail: `${safety.reason || 'This action requires confirmation.'}\n\nReason: ${reason}`
@@ -934,6 +1085,7 @@ export class WebViewport extends BaseComponent {
             const compiled = await BackendClient.compileCdp(command);
             const webview = this.querySelector(`.chromium-webview[data-tab-id="${activeId}"]`) || window.AeroActiveWebview;
             const report = await this.executeCompiledCdp(compiled.calls || [], webview);
+            this.hideLiveCursorSoon();
             this.logBrowserCommand(`Executed ${command.type} through native browser input`, 'success');
             return { ok: true, evaluation, compiled, report };
         } catch (error) {
@@ -983,21 +1135,31 @@ export class WebViewport extends BaseComponent {
 
     targetMatchScore(wanted, item) {
         const label = this.normalizeTargetLabel(item.label);
+        const placeholder = this.normalizeTargetLabel(item.placeholder);
+        const name = this.normalizeTargetLabel(item.name);
+        const idAttr = this.normalizeTargetLabel(item.idAttr);
+        const autocomplete = this.normalizeTargetLabel(item.autocomplete);
         const role = this.normalizeTargetLabel(item.role);
         const tag = this.normalizeTargetLabel(item.tag);
-        if (!wanted || !label) return 0;
+        const haystack = [label, placeholder, name, idAttr, autocomplete, role, tag].filter(Boolean).join(' ');
+        if (!wanted || !haystack) return 0;
         if (label === wanted) return 100;
+        if (placeholder === wanted || name === wanted || idAttr === wanted || autocomplete === wanted) return 95;
         if (label.includes(wanted)) return 80;
+        if (haystack.includes(wanted)) return 75;
         if (wanted.includes(label) && label.length > 2) return 65;
         const words = wanted.split(/\s+/).filter(Boolean);
-        const hits = words.filter(word => label.includes(word) || role.includes(word) || tag.includes(word)).length;
-        return hits ? hits * 12 : 0;
+        const hits = words.filter(word => haystack.includes(word)).length;
+        const fieldBoost = /email|password|search|name|phone|address|city|zip|otp|code/i.test(wanted)
+            && /textbox|combobox|input|textarea/i.test(`${role} ${tag}`) ? 10 : 0;
+        return hits ? hits * 12 + fieldBoost : 0;
     }
 
     async executeCompiledCdp(calls, webview) {
         const responses = [];
         for (const call of calls) {
             responses.push(await this.executeCdpCall(call, webview));
+            await this.sleep(this.aiActionDelay());
         }
         return { dry_run: false, responses };
     }
@@ -1021,7 +1183,16 @@ export class WebViewport extends BaseComponent {
             if (!webContentsId || !window.aeroNative?.insertGuestText) {
                 throw new Error('Native text insertion is unavailable.');
             }
-            await window.aeroNative.insertGuestText(webContentsId, params.text || '');
+            await this.showTypingBubble(params.text || '', webview);
+            if (window.AppState?.aiHumanTyping !== false) {
+                for (const char of String(params.text || '')) {
+                    await window.aeroNative.insertGuestText(webContentsId, char);
+                    await this.sleep(this.aiTypingDelay());
+                }
+            } else {
+                await window.aeroNative.insertGuestText(webContentsId, params.text || '');
+            }
+            await this.hideTypingBubble();
             return { method: call.method, ok: true };
         }
 
@@ -1029,7 +1200,19 @@ export class WebViewport extends BaseComponent {
             if (!webContentsId || !window.aeroNative?.dispatchGuestInput) {
                 throw new Error('Native input dispatch is unavailable.');
             }
+            await this.animateLiveCursor(params, webview);
             await window.aeroNative.dispatchGuestInput(webContentsId, this.toElectronInputEvent(params));
+            if (params.type === 'mousePressed') {
+                this.pulseLiveCursor();
+            }
+            return { method: call.method, ok: true };
+        }
+
+        if (call.method === 'Input.dispatchKeyEvent') {
+            if (!webContentsId || !window.aeroNative?.dispatchGuestInput) {
+                throw new Error('Native key dispatch is unavailable.');
+            }
+            await window.aeroNative.dispatchGuestInput(webContentsId, this.toElectronKeyEvent(params));
             return { method: call.method, ok: true };
         }
 
@@ -1064,6 +1247,92 @@ export class WebViewport extends BaseComponent {
             y: params.y || 0,
             button: params.button || 'left',
             clickCount: params.clickCount || 1
+        };
+    }
+
+    toElectronKeyEvent(params) {
+        const key = params.key || '';
+        const modifiers = [];
+        const mask = Number(params.modifiers || 0);
+        if (mask & 1) modifiers.push('alt');
+        if (mask & 2) modifiers.push('control');
+        if (mask & 4) modifiers.push('meta');
+        if (mask & 8) modifiers.push('shift');
+        return {
+            type: params.type === 'keyUp' ? 'keyUp' : 'keyDown',
+            keyCode: key,
+            modifiers
+        };
+    }
+
+    aiActionDelay() {
+        return Math.max(0, Number(window.AppState?.aiActionDelayMs ?? 160));
+    }
+
+    aiTypingDelay() {
+        return Math.max(0, Number(window.AppState?.aiTypingDelayMs ?? 24));
+    }
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async animateLiveCursor(params, webview) {
+        if (window.AppState?.aiShowLiveCursor === false) return;
+        const cursor = this.querySelector('#agent-cursor');
+        if (!cursor) return;
+        const point = this.webviewPointToOverlay(params.x || 0, params.y || 0, webview);
+        this.lastLiveCursorPoint = point;
+        cursor.style.display = 'block';
+        cursor.style.transform = `translate3d(${point.x - 8}px, ${point.y - 8}px, 0)`;
+        await this.sleep(Math.min(220, Math.max(60, this.aiActionDelay())));
+    }
+
+    pulseLiveCursor() {
+        const cursor = this.querySelector('#agent-cursor');
+        if (!cursor || cursor.style.display === 'none') return;
+        cursor.style.width = '22px';
+        cursor.style.height = '22px';
+        cursor.style.boxShadow = '0 0 0 8px rgba(77,144,254,0.20), 0 0 14px rgba(77,144,254,0.95)';
+        setTimeout(() => {
+            cursor.style.width = '16px';
+            cursor.style.height = '16px';
+            cursor.style.boxShadow = '0 0 0 0 rgba(77,144,254,0.45), 0 0 12px rgba(77,144,254,0.9)';
+        }, 140);
+    }
+
+    hideLiveCursorSoon() {
+        if (window.AppState?.aiShowLiveCursor === false) return;
+        clearTimeout(this.hideCursorTimer);
+        this.hideCursorTimer = setTimeout(() => {
+            const cursor = this.querySelector('#agent-cursor');
+            if (cursor) cursor.style.display = 'none';
+        }, 900);
+    }
+
+    async showTypingBubble(text, webview) {
+        if (window.AppState?.aiShowLiveCursor === false) return;
+        const bubble = this.querySelector('#agent-typing-bubble');
+        if (!bubble) return;
+        const point = this.lastLiveCursorPoint || this.webviewPointToOverlay(24, 24, webview);
+        bubble.textContent = `AI typing${text ? `: ${String(text).slice(0, 24)}${String(text).length > 24 ? '...' : ''}` : ''}`;
+        bubble.style.display = 'block';
+        bubble.style.transform = `translate3d(${point.x + 14}px, ${point.y + 12}px, 0)`;
+        await this.sleep(60);
+    }
+
+    async hideTypingBubble() {
+        const bubble = this.querySelector('#agent-typing-bubble');
+        if (bubble) bubble.style.display = 'none';
+    }
+
+    webviewPointToOverlay(x, y, webview) {
+        const area = this.querySelector('#web-content-scroll')?.getBoundingClientRect();
+        const rect = webview?.getBoundingClientRect?.();
+        if (!area || !rect) return { x, y };
+        return {
+            x: Math.round(rect.left - area.left + x),
+            y: Math.round(rect.top - area.top + y)
         };
     }
 

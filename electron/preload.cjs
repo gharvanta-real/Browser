@@ -28,5 +28,10 @@ contextBridge.exposeInMainWorld('aeroNative', {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('aero:tracker-blocked', listener);
     return () => ipcRenderer.removeListener('aero:tracker-blocked', listener);
+  },
+  onShortcut: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('aero:shortcut', listener);
+    return () => ipcRenderer.removeListener('aero:shortcut', listener);
   }
 });

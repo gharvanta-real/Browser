@@ -20,6 +20,26 @@ window.AppState = {
     tabLayout: 'horizontal', // 'horizontal' | 'vertical'
     showAiView: false, // Toggles accessibility tree overlay
     showAiSidebar: false, // AI Sidebar starts closed by default
+    aiControlEnabled: true,
+    aiShowLiveCursor: true,
+    aiHumanTyping: true,
+    aiTypingDelayMs: 24,
+    aiActionDelayMs: 160,
+    aiRequireConfirmation: true,
+    aiAllowPageReading: true,
+    aiAllowActionExecution: true,
+    lastAiContextDisclosure: null,
+    autofillProfile: {
+        fullName: '',
+        email: '',
+        phone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: 'India'
+    },
     runtimeEngine: 'web',
     theme: 'light', // 'light' (default) | 'dark'
     isAiStreaming: false,
@@ -28,6 +48,8 @@ window.AppState = {
     ],
     taskLogs: [], // Step-by-step task logs for visual tracing
     activeTaskStep: null,
+    aiActionHistory: [],
+    aiCancelRequested: false,
     
     // User Settings
     syncBookmarks: true,
@@ -463,8 +485,32 @@ window.AppState = {
         'searchEngine', 'showSearchSuggestions', 'showSearchHistory', 'showSearchAutocomplete',
         'downloadPath', 'askBeforeDownload', 'memorySaver', 'energySaver',
         'showBookmarksBar', 'showLeftSidebar', 'aiProvider', 'aiProfile',
-        'blockedTrackers', 'blockedTrackerLog'
+        'blockedTrackers', 'blockedTrackerLog', 'aiControlEnabled', 'aiShowLiveCursor',
+        'aiHumanTyping', 'aiTypingDelayMs', 'aiActionDelayMs', 'aiRequireConfirmation',
+        'aiAllowPageReading', 'aiAllowActionExecution', 'aiActionHistory',
+        'lastAiContextDisclosure', 'autofillProfile'
     ],
+    recordAiAction(entry) {
+        const event = {
+            id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp: new Date().toISOString(),
+            ...entry
+        };
+        this.aiActionHistory = [event, ...(this.aiActionHistory || [])].slice(0, 300);
+        return event;
+    },
+    requestAiCancel(reason = 'User stopped the AI task') {
+        this.aiCancelRequested = true;
+        this.isAiStreaming = false;
+        this.activeTaskStep = null;
+        this.taskLogs = [
+            ...(this.taskLogs || []),
+            { text: reason, status: 'warning' }
+        ].slice(-20);
+        this.recordAiAction({ type: 'cancel', status: 'warning', reason });
+        this.persistSoon();
+        this.listeners.forEach(cb => cb(this));
+    },
     subscribe(callback) {
         this.listeners.push(callback);
         callback(this);

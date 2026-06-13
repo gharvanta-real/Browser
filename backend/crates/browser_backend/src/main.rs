@@ -1,13 +1,16 @@
 use agent_protocol::{AgentPlan, AgentPlanRequest, AgentStep, BrowserAction, PermissionTier};
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use browser_ai::{AiProfile, AiProvider, AiProviderSetupRequest, AiResponseMode};
-use browser_automation::{AutomationEvaluation, AutomationRequest, evaluate_automation};
+use browser_automation::{
+    AutomationCommand, AutomationEvaluation, AutomationRequest, InteractionTarget, MouseButton,
+    evaluate_automation,
+};
 use browser_cdp::{
     CdpCompileRequest, CdpExecutor, MockCdpTransport, WebSocketCdpTransport, compile_to_cdp,
 };
@@ -15,7 +18,7 @@ use browser_policy::{
     ActionAuditEvent, ActionEvaluation, DataClass, DataHandlingDecision, DataUse, PrivacyPolicy,
     SafetyPolicy, production_readiness_report,
 };
-use browser_storage::BrowserStorage;
+use browser_storage::{BrowserStorage, PasswordEntrySaveRequest};
 use chrono::Utc;
 use parking_lot::{Mutex, RwLock};
 use search_core::{IndexDocumentsRequest, SearchIndex, SearchQuery};
@@ -89,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/ai/providers/test", post(test_ai_provider))
         .route("/v1/ai/profile", get(ai_profile).post(save_ai_profile))
         .route("/v1/automation/evaluate", post(evaluate_automation_command))
+        .route("/v1/automation/plan", post(plan_automation))
         .route("/v1/automation/compile-cdp", post(compile_cdp))
         .route("/v1/automation/execute-dry-run", post(execute_dry_run))
         .route("/v1/automation/execute-cdp", post(execute_cdp))
@@ -99,7 +103,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/privacy/policy", get(privacy_policy))
         .route("/v1/readiness", get(readiness))
         .route("/v1/storage/health", get(storage_health))
-        .route("/v1/state/snapshot", get(load_state_snapshot).post(save_state_snapshot))
+        .route(
+            "/v1/state/snapshot",
+            get(load_state_snapshot).post(save_state_snapshot),
+        )
+        .route("/v1/passwords", get(list_passwords).post(save_password))
+        .route("/v1/passwords/reveal", post(reveal_password))
+        .route("/v1/passwords/{id}", delete(delete_password))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -485,6 +495,128 @@ async fn evaluate_automation_command(
     }
 }
 
+async fn plan_automation(Json(request): Json<AutomationPlanRequest>) -> impl IntoResponse {
+    let tab_id = request
+        .tab_id
+        .clone()
+        .unwrap_or_else(|| "active".to_string());
+    let goal = request.goal.trim();
+    if goal.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "goal is required".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let lower = goal.to_lowercase();
+    let mut commands = Vec::new();
+    let mut notes = Vec::new();
+
+    if let Some(url) = planned_url(goal, &lower) {
+        commands.push(AutomationCommand::OpenPage {
+            tab_id: Some(tab_id.clone()),
+            url,
+        });
+        notes.push("open/navigate".to_string());
+    } else if let Some(query) = planned_search(goal, &lower) {
+        commands.push(fill_label(&tab_id, "search", &query, false));
+        commands.push(key_press(&tab_id, "Enter"));
+        notes.push("search current page".to_string());
+    }
+
+    if commands.is_empty() && contains_any(&lower, &["login", "log in", "sign in"]) {
+        if let Some(email) = value_after(goal, &["email", "user", "username"]) {
+            commands.push(fill_label(&tab_id, "email", &email, false));
+        }
+        if let Some(password) = value_after(goal, &["password", "pass"]) {
+            commands.push(fill_label(&tab_id, "password", &password, true));
+        }
+        commands.push(click_label(&tab_id, "login"));
+        notes.push("login form".to_string());
+    }
+
+    if commands.is_empty()
+        && contains_any(
+            &lower,
+            &[
+                "autofill",
+                "fill my",
+                "fill form",
+                "my details",
+                "contact form",
+                "signup",
+                "sign up",
+            ],
+        )
+    {
+        let before = commands.len();
+        add_profile_fill_commands(&mut commands, &tab_id, request.autofill_profile.as_ref());
+        add_inline_fill_commands(&mut commands, &tab_id, goal);
+        if commands.len() > before {
+            notes.push("profile/form autofill".to_string());
+        }
+        if contains_any(&lower, &["submit", "continue", "next", "send"]) {
+            commands.push(click_label(&tab_id, preferred_submit_label(&lower)));
+            notes.push("submit/continue".to_string());
+        }
+    }
+
+    if commands.is_empty() && contains_any(&lower, &["click", "tap", "press"]) {
+        let label = lower
+            .split_once("click")
+            .map(|(_, tail)| tail)
+            .or_else(|| lower.split_once("tap").map(|(_, tail)| tail))
+            .or_else(|| lower.split_once("press").map(|(_, tail)| tail))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("continue");
+        commands.push(click_label(&tab_id, label));
+        notes.push("click target".to_string());
+    }
+
+    if commands.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "No executable plan matched this goal yet.".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let sensitive_count = commands
+        .iter()
+        .filter(|command| matches!(command, AutomationCommand::Fill { sensitive: true, .. }))
+        .count();
+    let disclosure = plan_disclosure(goal, &request, commands.len(), sensitive_count);
+    let summary = format!(
+        "Planned {} action{} for {}.",
+        commands.len(),
+        if commands.len() == 1 { "" } else { "s" },
+        if notes.is_empty() {
+            "browser control".to_string()
+        } else {
+            notes.join(", ")
+        }
+    );
+
+    (
+        StatusCode::OK,
+        Json(AutomationPlanResponse {
+            plan_id: Uuid::new_v4().to_string(),
+            summary,
+            commands,
+            needs_confirmation: sensitive_count > 0
+                || contains_any(&lower, &["submit", "pay", "buy", "book", "delete", "cancel"]),
+            disclosure,
+        }),
+    )
+        .into_response()
+}
+
 async fn compile_cdp(Json(request): Json<CdpCompileRequest>) -> impl IntoResponse {
     match compile_to_cdp(&request.command) {
         Ok(response) => (StatusCode::OK, Json(response)).into_response(),
@@ -656,11 +788,119 @@ async fn save_state_snapshot(
     State(state): State<AppState>,
     Json(request): Json<StateSnapshotRequest>,
 ) -> impl IntoResponse {
-    match state.storage.lock().save_app_state_snapshot(&request.snapshot) {
+    match state
+        .storage
+        .lock()
+        .save_app_state_snapshot(&request.snapshot)
+    {
         Ok(()) => (
             StatusCode::OK,
             Json(StateSnapshotResponse {
                 snapshot: Some(request.snapshot),
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn list_passwords(State(state): State<AppState>) -> impl IntoResponse {
+    match state.storage.lock().list_password_entries() {
+        Ok(entries) => (StatusCode::OK, Json(PasswordListResponse { entries })).into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn save_password(
+    State(state): State<AppState>,
+    Json(request): Json<PasswordSaveRequest>,
+) -> impl IntoResponse {
+    if request.site.trim().is_empty()
+        || request.origin.trim().is_empty()
+        || request.username.trim().is_empty()
+        || request.password.is_empty()
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "site, origin, username, and password are required".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let id = request.id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let save = PasswordEntrySaveRequest {
+        id,
+        site: request.site.trim().to_string(),
+        origin: normalize_origin(&request.origin),
+        username: request.username.trim().to_string(),
+        password: request.password,
+    };
+
+    match state.storage.lock().save_password_entry(&save) {
+        Ok(entry) => (StatusCode::OK, Json(entry)).into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn reveal_password(
+    State(state): State<AppState>,
+    Json(request): Json<PasswordRevealRequest>,
+) -> impl IntoResponse {
+    match state.storage.lock().reveal_password(&request.id) {
+        Ok(Some(password)) => {
+            (StatusCode::OK, Json(PasswordRevealResponse { password })).into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "password entry not found".to_string(),
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_password(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match state.storage.lock().delete_password_entry(&id) {
+        Ok(true) => (
+            StatusCode::OK,
+            Json(DeletePasswordResponse { deleted: true }),
+        )
+            .into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "password entry not found".to_string(),
             }),
         )
             .into_response(),
@@ -722,9 +962,55 @@ struct StateSnapshotResponse {
 }
 
 #[derive(Serialize)]
+struct PasswordListResponse {
+    entries: Vec<browser_storage::PasswordEntry>,
+}
+
+#[derive(Deserialize)]
+struct PasswordSaveRequest {
+    id: Option<String>,
+    site: String,
+    origin: String,
+    username: String,
+    password: String,
+}
+
+#[derive(Deserialize)]
+struct PasswordRevealRequest {
+    id: String,
+}
+
+#[derive(Serialize)]
+struct PasswordRevealResponse {
+    password: String,
+}
+
+#[derive(Serialize)]
+struct DeletePasswordResponse {
+    deleted: bool,
+}
+
+#[derive(Serialize)]
 struct AutomationEvaluateResponse {
     automation: AutomationEvaluation,
     safety: Option<ActionEvaluation>,
+}
+
+#[derive(Deserialize)]
+struct AutomationPlanRequest {
+    goal: String,
+    tab_id: Option<String>,
+    page_snapshot: Option<serde_json::Value>,
+    autofill_profile: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct AutomationPlanResponse {
+    plan_id: String,
+    summary: String,
+    commands: Vec<AutomationCommand>,
+    needs_confirmation: bool,
+    disclosure: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -753,6 +1039,222 @@ struct AiProviderTestResponse {
     model: String,
     response_mode: AiResponseMode,
     message: String,
+}
+
+fn fill_label(tab_id: &str, label: &str, text: &str, sensitive: bool) -> AutomationCommand {
+    AutomationCommand::Fill {
+        tab_id: tab_id.to_string(),
+        target: InteractionTarget::AccessibilityNode {
+            ax_node_id: label.to_string(),
+            label: label.to_string(),
+        },
+        text: text.to_string(),
+        sensitive,
+    }
+}
+
+fn click_label(tab_id: &str, label: &str) -> AutomationCommand {
+    AutomationCommand::Click {
+        tab_id: tab_id.to_string(),
+        target: InteractionTarget::AccessibilityNode {
+            ax_node_id: label.to_string(),
+            label: label.to_string(),
+        },
+        button: MouseButton::Left,
+    }
+}
+
+fn key_press(tab_id: &str, key: &str) -> AutomationCommand {
+    AutomationCommand::KeyPress {
+        tab_id: tab_id.to_string(),
+        key: key.to_string(),
+        modifiers: Vec::new(),
+    }
+}
+
+fn planned_url(goal: &str, lower: &str) -> Option<String> {
+    let prefixes = ["open ", "go to ", "navigate to ", "visit "];
+    for prefix in prefixes {
+        if let Some(raw) = lower.strip_prefix(prefix) {
+            let original = &goal[goal.len() - raw.len()..];
+            return Some(normalize_web_url(original.trim()));
+        }
+    }
+    None
+}
+
+fn planned_search(goal: &str, lower: &str) -> Option<String> {
+    let prefixes = ["search for ", "search ", "find "];
+    for prefix in prefixes {
+        if let Some(raw) = lower.strip_prefix(prefix) {
+            let original = &goal[goal.len() - raw.len()..];
+            let value = original.trim();
+            if !value.is_empty() && value != "down" && value != "up" {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn normalize_web_url(raw: &str) -> String {
+    let value = raw.trim();
+    if value.starts_with("http://") || value.starts_with("https://") {
+        value.to_string()
+    } else if value.contains('.') && !value.contains(' ') {
+        format!("https://{value}")
+    } else {
+        format!(
+            "https://www.google.com/search?q={}",
+            encode_query(value)
+        )
+    }
+}
+
+fn encode_query(value: &str) -> String {
+    value
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![byte as char]
+            }
+            b' ' => vec!['+'],
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect()
+}
+
+fn add_profile_fill_commands(
+    commands: &mut Vec<AutomationCommand>,
+    tab_id: &str,
+    profile: Option<&serde_json::Value>,
+) {
+    let Some(profile) = profile else {
+        return;
+    };
+    for (label, keys, sensitive) in [
+        ("name", &["fullName", "name"][..], false),
+        ("email", &["email"][..], false),
+        ("phone", &["phone", "mobile"][..], false),
+        ("address", &["addressLine1", "address"][..], false),
+        ("address line 2", &["addressLine2"][..], false),
+        ("city", &["city"][..], false),
+        ("state", &["state", "region"][..], false),
+        ("zip", &["zip", "postalCode", "postal"][..], false),
+        ("country", &["country"][..], false),
+    ] {
+        if let Some(value) = profile_value(profile, keys) {
+            commands.push(fill_label(tab_id, label, &value, sensitive));
+        }
+    }
+}
+
+fn add_inline_fill_commands(commands: &mut Vec<AutomationCommand>, tab_id: &str, goal: &str) {
+    for (label, keys, sensitive) in [
+        ("name", &["name"][..], false),
+        ("email", &["email"][..], false),
+        ("phone", &["phone", "mobile"][..], false),
+        ("password", &["password", "pass"][..], true),
+        ("company", &["company"][..], false),
+    ] {
+        if let Some(value) = value_after(goal, keys) {
+            commands.push(fill_label(tab_id, label, &value, sensitive));
+        }
+    }
+}
+
+fn profile_value(profile: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        let value = profile.get(*key).and_then(|value| value.as_str());
+        if let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+fn value_after(goal: &str, keys: &[&str]) -> Option<String> {
+    let words: Vec<&str> = goal.split_whitespace().collect();
+    for key in keys {
+        if let Some(index) = words
+            .iter()
+            .position(|word| word.trim_matches(|c: char| !c.is_alphanumeric()).eq_ignore_ascii_case(key))
+        {
+            let mut value = Vec::new();
+            for word in words.iter().skip(index + 1) {
+                let lower = word.to_lowercase();
+                if ["and", "with", "then", "password", "email", "phone", "name", "company"]
+                    .contains(&lower.as_str())
+                    && !value.is_empty()
+                {
+                    break;
+                }
+                if !["is", "as", "to", "=", ":"].contains(&lower.as_str()) {
+                    value.push(*word);
+                }
+            }
+            let joined = value.join(" ");
+            let cleaned = joined.trim_matches(|c: char| c == ',' || c == ';' || c == '.').trim();
+            if !cleaned.is_empty() {
+                return Some(cleaned.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn preferred_submit_label(lower: &str) -> &'static str {
+    if lower.contains("send") {
+        "send"
+    } else if lower.contains("next") {
+        "next"
+    } else if lower.contains("continue") {
+        "continue"
+    } else {
+        "submit"
+    }
+}
+
+fn plan_disclosure(
+    goal: &str,
+    request: &AutomationPlanRequest,
+    command_count: usize,
+    sensitive_count: usize,
+) -> serde_json::Value {
+    let snapshot = request.page_snapshot.as_ref();
+    let controls = snapshot
+        .and_then(|value| value.get("interactives"))
+        .and_then(|value| value.as_array())
+        .map(|items| items.len())
+        .unwrap_or(0);
+    let forms = snapshot
+        .and_then(|value| value.get("forms"))
+        .and_then(|value| value.as_array())
+        .map(|items| items.len())
+        .unwrap_or(0);
+    json!({
+        "goal": goal,
+        "page": {
+            "url": snapshot.and_then(|value| value.get("url")).and_then(|value| value.as_str()).unwrap_or(""),
+            "title": snapshot.and_then(|value| value.get("title")).and_then(|value| value.as_str()).unwrap_or(""),
+            "text_chars": snapshot.and_then(|value| value.get("text")).and_then(|value| value.as_str()).map(str::len).unwrap_or(0),
+            "controls": controls,
+            "forms": forms
+        },
+        "sent_to_planner": {
+            "goal": true,
+            "page_snapshot": snapshot.is_some(),
+            "autofill_profile": request.autofill_profile.is_some()
+        },
+        "plan": {
+            "command_count": command_count,
+            "sensitive_field_count": sensitive_count
+        }
+    })
 }
 
 impl ActionRateLimiter {
@@ -896,4 +1398,12 @@ fn storage_path() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_dir()?
         .join("data")
         .join("aero_backend.sqlite3"))
+}
+
+fn normalize_origin(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return trimmed.trim_end_matches('/').to_string();
+    }
+    format!("https://{}", trimmed.trim_end_matches('/'))
 }

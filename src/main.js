@@ -278,6 +278,52 @@ if (window.aeroNative) {
             });
         });
     }
+
+    if (window.aeroNative.onShortcut) {
+        window.aeroNative.onShortcut(({ key }) => {
+            if (key === 'l') {
+                const input = document.getElementById('url-input');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+                return;
+            }
+            if (key === 't') {
+                window.AppState.update(state => {
+                    const newId = `tab-${Date.now()}`;
+                    state.tabs.forEach(tab => { tab.active = false; });
+                    state.tabs.push({
+                        id: newId,
+                        title: 'New Tab',
+                        url: 'https://newtab.internal',
+                        hibernated: false,
+                        active: true,
+                        workspace: state.activeWorkspace || 'Default',
+                        loading: false,
+                        loadError: null
+                    });
+                    state.activeTabId = newId;
+                });
+                setTimeout(() => document.getElementById('url-input')?.focus(), 50);
+                return;
+            }
+            if (key === 'w') {
+                window.AppState.update(state => {
+                    if ((state.tabs || []).length <= 1) return;
+                    const activeId = state.activeTabId;
+                    const index = state.tabs.findIndex(tab => tab.id === activeId);
+                    state.tabs = state.tabs.filter(tab => tab.id !== activeId);
+                    state.activeTabId = state.tabs[Math.max(0, index - 1)]?.id || state.tabs[0]?.id;
+                });
+                return;
+            }
+            if (key === 'r') {
+                const activeTab = window.AppState.tabs.find(tab => tab.id === window.AppState.activeTabId);
+                document.dispatchEvent(new CustomEvent('aero-webview-command', { detail: { command: activeTab?.loading ? 'stop' : 'reload' } }));
+            }
+        });
+    }
 }
 
 // Register Custom Web Elements

@@ -4,6 +4,7 @@ use browser_ai::{
 };
 use browser_crypto::{CryptoError, ProtectedSecret, protect_secret, reveal_secret};
 use browser_policy::ActionAuditEvent;
+use chrono::Utc;
 use rusqlite::{Connection, params};
 use search_core::SearchDocument;
 use std::path::Path;
@@ -310,6 +311,91 @@ impl BrowserStorage {
         Ok(Some(serde_json::from_str(&json)?))
     }
 
+    pub fn list_password_entries(&self) -> StorageResult<Vec<PasswordEntry>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, site, origin, username, created_at, updated_at, last_used_at
+             FROM password_entries ORDER BY updated_at DESC, site ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(PasswordEntry {
+                id: row.get(0)?,
+                site: row.get(1)?,
+                origin: row.get(2)?,
+                username: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+                last_used_at: row.get(6)?,
+            })
+        })?;
+        let mut entries = Vec::new();
+        for row in rows {
+            entries.push(row?);
+        }
+        Ok(entries)
+    }
+
+    pub fn save_password_entry(
+        &self,
+        request: &PasswordEntrySaveRequest,
+    ) -> StorageResult<PasswordEntry> {
+        let now = Utc::now().to_rfc3339();
+        let protected = protect_secret(&request.password)?;
+        let secret_json = serde_json::to_string(&PasswordSecret { protected })?;
+        self.conn.execute(
+            "INSERT INTO password_entries (id, site, origin, username, secret_json, created_at, updated_at, last_used_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, NULL)
+             ON CONFLICT(id) DO UPDATE SET
+                site = excluded.site,
+                origin = excluded.origin,
+                username = excluded.username,
+                secret_json = excluded.secret_json,
+                updated_at = excluded.updated_at",
+            params![
+                request.id,
+                request.site,
+                request.origin,
+                request.username,
+                secret_json,
+                now
+            ],
+        )?;
+        Ok(PasswordEntry {
+            id: request.id.clone(),
+            site: request.site.clone(),
+            origin: request.origin.clone(),
+            username: request.username.clone(),
+            created_at: now.clone(),
+            updated_at: now,
+            last_used_at: None,
+        })
+    }
+
+    pub fn reveal_password(&self, id: &str) -> StorageResult<Option<String>> {
+        let secret_json = self.conn.query_row(
+            "SELECT secret_json FROM password_entries WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, String>(0),
+        );
+        let secret_json = match secret_json {
+            Ok(json) => json,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        self.conn.execute(
+            "UPDATE password_entries SET last_used_at = ?1 WHERE id = ?2",
+            params![Utc::now().to_rfc3339(), id],
+        )?;
+        let secret: PasswordSecret = serde_json::from_str(&secret_json)?;
+        Ok(Some(reveal_secret(&secret.protected)?))
+    }
+
+    pub fn delete_password_entry(&self, id: &str) -> StorageResult<bool> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM password_entries WHERE id = ?1", params![id])?
+            > 0)
+    }
+
     fn existing_api_key_json(&self, provider_key: &str) -> StorageResult<Option<String>> {
         let result = self.conn.query_row(
             "SELECT api_key_json FROM ai_provider_settings WHERE provider = ?1",
@@ -390,6 +476,20 @@ impl BrowserStorage {
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS password_entries (
+                id TEXT PRIMARY KEY,
+                site TEXT NOT NULL,
+                origin TEXT NOT NULL,
+                username TEXT NOT NULL,
+                secret_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_password_entries_origin
+                ON password_entries(origin);
+
             INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
             ",
         )?;
@@ -419,6 +519,31 @@ pub struct StorageStats {
     pub schema_version: u32,
     pub audit_events: u64,
     pub search_documents: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+pub struct PasswordEntry {
+    pub id: String,
+    pub site: String,
+    pub origin: String,
+    pub username: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub last_used_at: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+pub struct PasswordEntrySaveRequest {
+    pub id: String,
+    pub site: String,
+    pub origin: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PasswordSecret {
+    protected: ProtectedSecret,
 }
 
 fn provider_key(provider: AiProvider) -> &'static str {
@@ -550,5 +675,28 @@ mod tests {
             storage.load_ai_profile().unwrap().selected_provider,
             AiProvider::Local
         );
+    }
+
+    #[test]
+    fn stores_password_entries_as_protected_secrets() {
+        let storage = BrowserStorage::open_memory().unwrap();
+        let saved = storage
+            .save_password_entry(&PasswordEntrySaveRequest {
+                id: "entry-1".to_string(),
+                site: "Example".to_string(),
+                origin: "https://example.com".to_string(),
+                username: "user@example.com".to_string(),
+                password: "secret-password".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(saved.site, "Example");
+        assert_eq!(storage.list_password_entries().unwrap().len(), 1);
+        assert_eq!(
+            storage.reveal_password("entry-1").unwrap(),
+            Some("secret-password".to_string())
+        );
+        assert!(storage.delete_password_entry("entry-1").unwrap());
+        assert!(storage.reveal_password("entry-1").unwrap().is_none());
     }
 }

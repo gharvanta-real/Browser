@@ -3,20 +3,34 @@ import { BaseComponent } from '../BaseComponent.js';
 export class AddressesPage extends BaseComponent {
     constructor() {
         super();
+        const profile = window.AppState?.autofillProfile || {};
+        const savedAddress = profile.fullName || profile.addressLine1 ? [{
+            id: 1,
+            label: 'Primary',
+            name: profile.fullName || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            street: profile.addressLine1 || '',
+            street2: profile.addressLine2 || '',
+            city: profile.city || '',
+            state: profile.state || '',
+            pin: profile.zip || '',
+            country: profile.country || 'India'
+        }] : [];
         this.state = {
             searchQuery: '',
-            addresses: [
-                { id: 1, label: 'Home', name: 'Alex Morgan', street: '123 Pine St, Apt 4B', city: 'Seattle', state: 'WA', pin: '98101', country: 'United States' },
-                { id: 2, label: 'Work (Aero HQ)', name: 'Alex Morgan', street: '500 Innovation Way', city: 'San Francisco', state: 'CA', pin: '94105', country: 'United States' }
-            ],
+            addresses: savedAddress,
             showAddForm: false,
             newLabel: 'Home',
-            newName: '',
-            newStreet: '',
-            newCity: '',
-            newState: '',
-            newPin: '',
-            newCountry: 'United States'
+            newName: profile.fullName || '',
+            newEmail: profile.email || '',
+            newPhone: profile.phone || '',
+            newStreet: profile.addressLine1 || '',
+            newStreet2: profile.addressLine2 || '',
+            newCity: profile.city || '',
+            newState: profile.state || '',
+            newPin: profile.zip || '',
+            newCountry: profile.country || 'India'
         };
     }
 
@@ -40,7 +54,8 @@ export class AddressesPage extends BaseComponent {
                             <span style="font-size: 9px; font-weight: var(--font-weight-semibold); color: #188038; background: rgba(24,128,56,0.1); padding: 1px 6px; border-radius: 4px;">Autofill</span>
                         </div>
                         <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); color: var(--color-viewport-text); margin-top: 2px;">${a.name}</span>
-                        <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted); margin-top: 1px;">${a.street}, ${a.city}, ${a.state} ${a.pin}, ${a.country}</span>
+                        <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted); margin-top: 1px;">${a.email || 'No email'} - ${a.phone || 'No phone'}</span>
+                        <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted); margin-top: 1px;">${a.street}${a.street2 ? ', ' + a.street2 : ''}, ${a.city}, ${a.state} ${a.pin}, ${a.country}</span>
                     </div>
                 </div>
                 
@@ -110,6 +125,22 @@ export class AddressesPage extends BaseComponent {
                                 <div style="display: flex; flex-direction: column; gap: var(--spacing-xxs);">
                                     <label style="font-size: 10px; color: var(--color-text-inactive);">Street Address</label>
                                     <input type="text" id="new-addr-street" value="${this.state.newStreet}" placeholder="Apt, Suite, Street name..." style="background: var(--color-input-bg); border: 1px solid var(--color-border-light); border-radius: 6px; padding: var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-viewport-text); outline: none;">
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+                                    <div style="display: flex; flex-direction: column; gap: var(--spacing-xxs);">
+                                        <label style="font-size: 10px; color: var(--color-text-inactive);">Email</label>
+                                        <input type="email" id="new-addr-email" value="${this.state.newEmail}" placeholder="you@example.com" style="background: var(--color-input-bg); border: 1px solid var(--color-border-light); border-radius: 6px; padding: var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-viewport-text); outline: none;">
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: var(--spacing-xxs);">
+                                        <label style="font-size: 10px; color: var(--color-text-inactive);">Phone</label>
+                                        <input type="tel" id="new-addr-phone" value="${this.state.newPhone}" placeholder="+91..." style="background: var(--color-input-bg); border: 1px solid var(--color-border-light); border-radius: 6px; padding: var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-viewport-text); outline: none;">
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; flex-direction: column; gap: var(--spacing-xxs);">
+                                    <label style="font-size: 10px; color: var(--color-text-inactive);">Address Line 2</label>
+                                    <input type="text" id="new-addr-street2" value="${this.state.newStreet2}" placeholder="Apartment, floor, landmark..." style="background: var(--color-input-bg); border: 1px solid var(--color-border-light); border-radius: 6px; padding: var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-viewport-text); outline: none;">
                                 </div>
 
                                 <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--spacing-md);">
@@ -184,11 +215,14 @@ export class AddressesPage extends BaseComponent {
             formSave.addEventListener('click', () => {
                 const label = this.querySelector('#new-addr-label').value.trim() || 'Home';
                 const name = this.querySelector('#new-addr-name').value.trim();
+                const email = this.querySelector('#new-addr-email').value.trim();
+                const phone = this.querySelector('#new-addr-phone').value.trim();
                 const street = this.querySelector('#new-addr-street').value.trim();
+                const street2 = this.querySelector('#new-addr-street2').value.trim();
                 const city = this.querySelector('#new-addr-city').value.trim();
                 const state = this.querySelector('#new-addr-state').value.trim();
                 const pin = this.querySelector('#new-addr-pin').value.trim();
-                const country = this.querySelector('#new-addr-country').value.trim() || 'United States';
+                const country = this.querySelector('#new-addr-country').value.trim() || 'India';
 
                 if (!name || !street || !city || !state || !pin) {
                     alert('Please complete Name, Street, City, State and ZIP code.');
@@ -196,20 +230,33 @@ export class AddressesPage extends BaseComponent {
                 }
 
                 this.setState({
-                    addresses: [
-                        ...this.state.addresses,
-                        {
-                            id: Date.now(),
-                            label,
-                            name,
-                            street,
-                            city,
-                            state,
-                            pin,
-                            country
-                        }
-                    ],
+                    addresses: [{
+                        id: Date.now(),
+                        label,
+                        name,
+                        email,
+                        phone,
+                        street,
+                        street2,
+                        city,
+                        state,
+                        pin,
+                        country
+                    }],
                     showAddForm: false
+                });
+                window.AppState.update(appState => {
+                    appState.autofillProfile = {
+                        fullName: name,
+                        email,
+                        phone,
+                        addressLine1: street,
+                        addressLine2: street2,
+                        city,
+                        state,
+                        zip: pin,
+                        country
+                    };
                 });
             });
         }

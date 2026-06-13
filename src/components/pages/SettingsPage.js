@@ -41,7 +41,15 @@ export class SettingsPage extends BaseComponent {
             showBookmarksBar: window.AppState?.showBookmarksBar ?? true,
             showLeftSidebar: window.AppState?.showLeftSidebar ?? true,
             focusMode: window.AppState?.focusMode ?? false,
-            safeBrowsing: window.AppState?.safeBrowsing ?? 'standard'
+            safeBrowsing: window.AppState?.safeBrowsing ?? 'standard',
+            aiControlEnabled: window.AppState?.aiControlEnabled ?? true,
+            aiShowLiveCursor: window.AppState?.aiShowLiveCursor ?? true,
+            aiHumanTyping: window.AppState?.aiHumanTyping ?? true,
+            aiTypingDelayMs: window.AppState?.aiTypingDelayMs ?? 24,
+            aiActionDelayMs: window.AppState?.aiActionDelayMs ?? 160,
+            aiRequireConfirmation: window.AppState?.aiRequireConfirmation ?? true,
+            aiAllowPageReading: window.AppState?.aiAllowPageReading ?? true,
+            aiAllowActionExecution: window.AppState?.aiAllowActionExecution ?? true
         };
     }
 
@@ -78,7 +86,15 @@ export class SettingsPage extends BaseComponent {
                 showBookmarksBar: state.showBookmarksBar ?? true,
                 showLeftSidebar: state.showLeftSidebar ?? true,
                 focusMode: state.focusMode ?? false,
-                safeBrowsing: state.safeBrowsing ?? 'standard'
+                safeBrowsing: state.safeBrowsing ?? 'standard',
+                aiControlEnabled: state.aiControlEnabled ?? true,
+                aiShowLiveCursor: state.aiShowLiveCursor ?? true,
+                aiHumanTyping: state.aiHumanTyping ?? true,
+                aiTypingDelayMs: state.aiTypingDelayMs ?? 24,
+                aiActionDelayMs: state.aiActionDelayMs ?? 160,
+                aiRequireConfirmation: state.aiRequireConfirmation ?? true,
+                aiAllowPageReading: state.aiAllowPageReading ?? true,
+                aiAllowActionExecution: state.aiAllowActionExecution ?? true
             });
         });
         super.connectedCallback();

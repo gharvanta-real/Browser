@@ -302,6 +302,38 @@ pub fn compile_to_cdp(command: &AutomationCommand) -> Result<CdpCompileResponse,
                     }),
                 },
                 CdpCall {
+                    method: "Input.dispatchKeyEvent".to_string(),
+                    params: json!({
+                        "type": "keyDown",
+                        "key": "a",
+                        "modifiers": modifiers_to_cdp(&[KeyModifier::Control])
+                    }),
+                },
+                CdpCall {
+                    method: "Input.dispatchKeyEvent".to_string(),
+                    params: json!({
+                        "type": "keyUp",
+                        "key": "a",
+                        "modifiers": modifiers_to_cdp(&[KeyModifier::Control])
+                    }),
+                },
+                CdpCall {
+                    method: "Input.dispatchKeyEvent".to_string(),
+                    params: json!({
+                        "type": "keyDown",
+                        "key": "Backspace",
+                        "modifiers": 0
+                    }),
+                },
+                CdpCall {
+                    method: "Input.dispatchKeyEvent".to_string(),
+                    params: json!({
+                        "type": "keyUp",
+                        "key": "Backspace",
+                        "modifiers": 0
+                    }),
+                },
+                CdpCall {
                     method: "Input.insertText".to_string(),
                     params: json!({ "text": text }),
                 },

@@ -9,6 +9,7 @@ rust-version.workspace = true
 browser_ai = { path = "../browser_ai" }
 browser_crypto = { path = "../browser_crypto" }
 browser_policy = { path = "../browser_policy" }
+chrono.workspace = true
 rusqlite.workspace = true
 search_core = { path = "../search_core" }
 serde.workspace = true

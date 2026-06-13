@@ -104,6 +104,13 @@ export class BackendClient {
         });
     }
 
+    static async planAutomation(payload) {
+        return this.request('/v1/automation/plan', {
+            method: 'POST',
+            body: payload
+        });
+    }
+
     static async compileCdp(command) {
         return this.request('/v1/automation/compile-cdp', {
             method: 'POST',
@@ -128,6 +135,32 @@ export class BackendClient {
     static async getAuditLog() {
         return this.request('/v1/security/audit-log', {
             fallback: { events: [] }
+        });
+    }
+
+    static async listPasswords() {
+        return this.request('/v1/passwords', {
+            fallback: { entries: [] }
+        });
+    }
+
+    static async savePassword(payload) {
+        return this.request('/v1/passwords', {
+            method: 'POST',
+            body: payload
+        });
+    }
+
+    static async revealPassword(id) {
+        return this.request('/v1/passwords/reveal', {
+            method: 'POST',
+            body: { id }
+        });
+    }
+
+    static async deletePassword(id) {
+        return this.request(`/v1/passwords/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
         });
     }
 

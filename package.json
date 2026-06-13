@@ -2,14 +2,54 @@
   "name": "aero-browser",
   "version": "0.1.0",
   "private": true,
+  "author": "Aero Browser",
   "description": "Aero Browser Chromium shell with Rust backend services.",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "electron .",
     "start:web": "python -m http.server 8080 --bind 127.0.0.1",
-    "backend": "backend\\target\\debug\\browser_backend.exe"
+    "backend": "backend\\target\\debug\\browser_backend.exe",
+    "build:backend": "cargo build -p browser_backend --manifest-path backend\\Cargo.toml",
+    "pack": "npm run build:backend && electron-builder --dir",
+    "dist:win": "npm run build:backend && electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.aero.browser",
+    "productName": "Aero Browser",
+    "artifactName": "Aero-Browser-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "asar": false,
+    "files": [
+      "index.html",
+      "src/**/*",
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/target/debug/browser_backend.exe",
+        "to": "backend/browser_backend.exe"
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "devDependencies": {
-    "electron": "^39.2.7"
+    "electron": "^39.2.7",
+    "electron-builder": "^26.15.3"
   }
 }

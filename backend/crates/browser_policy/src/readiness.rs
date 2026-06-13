@@ -104,9 +104,9 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
             item(
                 BrowserFeatureArea::PasswordIdentity,
                 "7.8",
-                FeatureStatus::ContractOnly,
-                "Privacy policy classifies credentials/payment as never-cloud and biometric-gated.",
-                &["Windows DPAPI storage", "Windows Hello integration", "breach-check API"],
+                FeatureStatus::Partial,
+                "Credential records are stored through backend APIs with DPAPI/protected local secrets, and the password manager UI can save, list, reveal, copy, and delete vault entries without seeded mock passwords.",
+                &["Windows Hello integration", "passkey/WebAuthn store", "breach-check API", "autofill capture/fill pipeline"],
             ),
             item(
                 BrowserFeatureArea::MediaPdf,
@@ -126,15 +126,15 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
                 BrowserFeatureArea::AiPageReading,
                 "10.1, 14.2",
                 FeatureStatus::Partial,
-                "Privacy policy supports cloud/local decisions and the Electron shell captures active page title, text, headings, and links for AI context.",
-                &["full AXTree role/bounds connector", "screenshot OCR pipeline", "prompt-injection classifier", "what-was-sent inspector"],
+                "Privacy policy supports cloud/local decisions; the Electron shell captures active page title, text, headings, links, forms, and visible interactive controls; Security Center shows the last AI context disclosure with redacted command previews.",
+                &["native Chromium AXTree connector", "screenshot OCR pipeline", "prompt-injection classifier", "server-side disclosure export"],
             ),
             item(
                 BrowserFeatureArea::AiActionExecution,
                 "10.4, 13",
                 FeatureStatus::Partial,
-                "Agent actions, planning, permission tiers, audit events, CDP compilation, Electron native input dispatch, and label-to-coordinate element resolution are wired for navigation/click/fill/scroll primitives.",
-                &["full browser AXTree API integration", "durable activity log viewer", "complex planner/tool-use loop", "rollback/retry model"],
+                "Agent actions, backend goal-to-command planning, autofill profile planning, permission tiers, audit events, CDP compilation, Electron native input/key dispatch, sequential natural-language commands, form-aware field matching, live cursor/typing visualization, settings gates, interrupt/stop control, durable local action history, replace-on-fill, and label-to-coordinate element resolution are wired for navigation/click/fill/key/scroll primitives.",
+                &["native Chromium AXTree API integration", "multi-step model planner/tool loop", "rollback/retry model", "server-side action history export"],
             ),
             item(
                 BrowserFeatureArea::PermissionsTrust,
@@ -147,7 +147,7 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
                 BrowserFeatureArea::PrivacyDataHandling,
                 "14",
                 FeatureStatus::Partial,
-                "Data classes and cloud/local handling decisions are implemented; browser state snapshots and AI secrets use protected storage/DPAPI where available.",
+                "Data classes and cloud/local handling decisions are implemented; browser state snapshots, AI secrets, and password vault secrets use protected storage/DPAPI where available.",
                 &["export/delete flows", "what-was-sent inspector", "per-profile key rotation"],
             ),
             item(

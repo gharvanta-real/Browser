@@ -4,9 +4,12 @@ const { spawn } = require('child_process');
 const net = require('net');
 
 const ROOT = path.resolve(__dirname, '..');
-const BACKEND_EXE = path.join(ROOT, 'backend', 'target', 'debug', 'browser_backend.exe');
+const BACKEND_EXE = app.isPackaged
+  ? path.join(process.resourcesPath, 'backend', 'browser_backend.exe')
+  : path.join(ROOT, 'backend', 'target', 'debug', 'browser_backend.exe');
 let backendProcess = null;
 const activeDownloads = new Map();
+const permissionDecisions = new Map();
 const trackerHosts = [
   'doubleclick.net',
   'googlesyndication.com',
@@ -44,6 +47,30 @@ function isTrackerUrl(src) {
   } catch {
     return false;
   }
+}
+
+function originFromUrl(src) {
+  try {
+    const parsed = new URL(src);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return 'unknown-origin';
+  }
+}
+
+function permissionLabel(permission) {
+  return {
+    media: 'camera or microphone',
+    geolocation: 'location',
+    notifications: 'notifications',
+    midi: 'MIDI device access',
+    midiSysex: 'MIDI system access',
+    pointerLock: 'pointer lock',
+    fullscreen: 'fullscreen',
+    openExternal: 'open external app',
+    clipboardRead: 'clipboard read',
+    clipboardSanitizedWrite: 'clipboard write'
+  }[permission] || permission;
 }
 
 function isPortOpen(port, host = '127.0.0.1') {
@@ -101,6 +128,18 @@ async function createWindow() {
     win.webContents.openDevTools({ mode: 'detach' });
   }
 
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!input.control && !input.meta) return;
+    const key = String(input.key || '').toLowerCase();
+    if (!['l', 't', 'w', 'r'].includes(key)) return;
+    event.preventDefault();
+    win.webContents.send('aero:shortcut', {
+      key,
+      shift: Boolean(input.shift),
+      alt: Boolean(input.alt)
+    });
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       shell.openExternal(url);
@@ -119,14 +158,56 @@ async function createWindow() {
     }
   });
 
-  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const allowedPermissions = new Set(['clipboard-read', 'clipboard-sanitized-write']);
-    const allowed = allowedPermissions.has(permission);
-    win.webContents.send('aero:permission', {
-      permission,
-      allowed,
-      requestingUrl: details?.requestingUrl || webContents.getURL() || ''
+  win.webContents.session.setPermissionRequestHandler(async (requestingWebContents, permission, callback, details = {}) => {
+    const requestingUrl = details.requestingUrl || requestingWebContents.getURL() || '';
+    const origin = originFromUrl(requestingUrl);
+    const normalizedPermission = String(permission || '').replace(/-/g, '');
+    const key = `${origin}:${normalizedPermission}`;
+    const quietAllow = new Set(['clipboardsanitizedwrite']);
+    const promptPermissions = new Set([
+      'clipboardread',
+      'media',
+      'geolocation',
+      'notifications',
+      'fullscreen',
+      'pointerlock',
+      'midi',
+      'midisysex'
+    ]);
+
+    if (quietAllow.has(normalizedPermission)) {
+      win.webContents.send('aero:permission', { permission, allowed: true, requestingUrl, remembered: true });
+      callback(true);
+      return;
+    }
+
+    if (permissionDecisions.has(key)) {
+      const allowed = permissionDecisions.get(key);
+      win.webContents.send('aero:permission', { permission, allowed, requestingUrl, remembered: true });
+      callback(allowed);
+      return;
+    }
+
+    if (!promptPermissions.has(normalizedPermission)) {
+      win.webContents.send('aero:permission', { permission, allowed: false, requestingUrl, remembered: false });
+      callback(false);
+      return;
+    }
+
+    const result = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Block', 'Allow once', 'Always allow for this site'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Site permission request',
+      message: `${origin} wants ${permissionLabel(normalizedPermission)}.`,
+      detail: 'Beta safety: Aero blocks unknown permissions by default and asks before giving sites device or private data access.',
+      noLink: true,
+      normalizeAccessKeys: true
     });
+    const allowed = result.response === 1 || result.response === 2;
+    if (result.response === 2) permissionDecisions.set(key, true);
+    win.webContents.send('aero:permission', { permission, allowed, requestingUrl, remembered: result.response === 2 });
     callback(allowed);
   });
 
@@ -185,7 +266,19 @@ async function createWindow() {
   await win.loadFile(path.join(ROOT, 'index.html'));
 }
 
-app.whenReady().then(createWindow);
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+
+  app.whenReady().then(createWindow);
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

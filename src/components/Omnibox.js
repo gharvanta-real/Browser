@@ -64,18 +64,20 @@ export class Omnibox extends BaseComponent {
         const theme = this.state.theme;
         const bookmarks = this.state.bookmarks || [];
         const isBookmarked = bookmarks.some(b => b.url === tab.url);
+        const canGoBack = Boolean(tab.canGoBack);
+        const canGoForward = Boolean(tab.canGoForward);
 
         return `
             <!-- Navigation History Buttons -->
             <div class="nav-buttons-group" style="display: flex; align-items: center; gap: 8px;">
-                <button class="nav-btn back" aria-label="Go Back" style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
+                <button class="nav-btn back" aria-label="Go Back" ${canGoBack ? '' : 'disabled'} style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: ${canGoBack ? 'pointer' : 'default'}; color: var(--color-text-inactive); opacity: ${canGoBack ? '1' : '.38'}; display: flex; align-items: center; justify-content: center;">
                     <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 16px;"></i>
                 </button>
-                <button class="nav-btn forward" aria-label="Go Forward" style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
+                <button class="nav-btn forward" aria-label="Go Forward" ${canGoForward ? '' : 'disabled'} style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: ${canGoForward ? 'pointer' : 'default'}; color: var(--color-text-inactive); opacity: ${canGoForward ? '1' : '.38'}; display: flex; align-items: center; justify-content: center;">
                     <i class="hgi-stroke hgi-arrow-right-01" style="font-size: 16px;"></i>
                 </button>
-                <button class="nav-btn reload" aria-label="Reload Page" style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
-                    <i class="hgi-stroke hgi-refresh" style="font-size: 16px;"></i>
+                <button class="nav-btn reload" aria-label="${tab.loading ? 'Stop Loading' : 'Reload Page'}" style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
+                    <i class="hgi-stroke ${tab.loading ? 'hgi-cancel-01' : 'hgi-refresh'}" style="font-size: 16px;"></i>
                 </button>
                 <!-- Voice search / mic icon button -->
                 <button class="nav-btn voice-search" aria-label="Voice Search" style="background: transparent; border: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
@@ -212,7 +214,7 @@ export class Omnibox extends BaseComponent {
         }
         if (reloadBtn) {
             reloadBtn.addEventListener('click', () => {
-                document.dispatchEvent(new CustomEvent('aero-webview-command', { detail: { command: 'reload' } }));
+                document.dispatchEvent(new CustomEvent('aero-webview-command', { detail: { command: this.state.activeTab?.loading ? 'stop' : 'reload' } }));
             });
         }
 
@@ -579,6 +581,8 @@ export class Omnibox extends BaseComponent {
                 activeTab.url = url;
                 activeTab.searchQuery = meta.query || null;
                 activeTab.isSearchResult = Boolean(meta.isSearch);
+                activeTab.loadError = null;
+                activeTab.loading = false;
                 try {
                     if (meta.title) {
                         activeTab.title = meta.title;
@@ -635,6 +639,8 @@ export class Omnibox extends BaseComponent {
                 activeTab.title = title;
                 activeTab.searchQuery = meta.query || null;
                 activeTab.isSearchResult = Boolean(meta.isSearch);
+                activeTab.loadError = null;
+                activeTab.loading = false;
             } else {
                 const newId = `tab-${Date.now()}`;
                 state.tabs.push({
@@ -643,7 +649,9 @@ export class Omnibox extends BaseComponent {
                     url: url,
                     hibernated: false,
                     active: true,
-                    workspace: state.activeWorkspace || 'Default'
+                    workspace: state.activeWorkspace || 'Default',
+                    loadError: null,
+                    loading: false
                 });
                 state.activeTabId = newId;
             }

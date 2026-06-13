@@ -45,6 +45,49 @@ export function renderTabsTab(state, getRowStyle, selectStyle, renderToggle, inp
                                 ${renderToggle('tabs-ai-view-toggle', state.showAiView)}
                             </div>
 
+                            <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('AI webpage control enable disable browser automation page control')}">
+                                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                    <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">AI webpage control</span>
+                                    <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Allow assistant prompts to click, type, scroll, and navigate visible web pages.</span>
+                                </div>
+                                ${renderToggle('tabs-ai-control-toggle', state.aiControlEnabled !== false)}
+                            </div>
+
+                            <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('Live AI cursor show mouse cursor moving typing animation')}">
+                                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                    <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">Show live AI cursor</span>
+                                    <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Display mouse movement, click pulses, and typing status while AI acts.</span>
+                                </div>
+                                ${renderToggle('tabs-ai-cursor-toggle', state.aiShowLiveCursor !== false)}
+                            </div>
+
+                            <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('Human typing character by character speed')}">
+                                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                    <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">Human-style typing</span>
+                                    <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Type character-by-character so form filling is visible and easier to interrupt.</span>
+                                </div>
+                                ${renderToggle('tabs-ai-human-typing-toggle', state.aiHumanTyping !== false)}
+                            </div>
+
+                            <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('AI action delay speed mouse typing delay')}">
+                                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                    <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">AI action speed</span>
+                                    <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Lower is faster; higher makes cursor and typing easier to watch.</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: var(--spacing-md); flex-shrink: 0;">
+                                    <strong id="tabs-ai-speed-display" style="color: var(--color-input-focus-border); font-size: var(--font-size-xs);">${state.aiActionDelayMs ?? 160} ms</strong>
+                                    <input type="range" id="tabs-ai-speed-slider" class="range-slider" min="0" max="500" step="20" value="${state.aiActionDelayMs ?? 160}" style="outline: none;">
+                                </div>
+                            </div>
+
+                            <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('Require confirmation for AI actions safety permission')}">
+                                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                    <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">Confirm sensitive actions</span>
+                                    <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Keep native confirmation on for purchases, submissions, account changes, and sensitive typing.</span>
+                                </div>
+                                ${renderToggle('tabs-ai-confirm-toggle', state.aiRequireConfirmation !== false)}
+                            </div>
+
                             <!-- AI provider select -->
                             <div class="settings-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-viewport-border); ${getRowStyle('Default AI Model Provider Claude GPT Gemini Llama')}">
                                 <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
@@ -107,6 +150,59 @@ export function bindTabsTabEvents(settingsPage, state) {
             const val = e.target.checked;
             window.AppState.update(state => {
                 state.showAiView = val;
+            });
+        });
+    }
+
+    const aiControlToggle = settingsPage.querySelector('#tabs-ai-control-toggle');
+    if (aiControlToggle) {
+        aiControlToggle.addEventListener('change', (e) => {
+            const val = e.target.checked;
+            window.AppState.update(state => {
+                state.aiControlEnabled = val;
+                state.aiAllowActionExecution = val;
+            });
+        });
+    }
+
+    const aiCursorToggle = settingsPage.querySelector('#tabs-ai-cursor-toggle');
+    if (aiCursorToggle) {
+        aiCursorToggle.addEventListener('change', (e) => {
+            window.AppState.update(state => {
+                state.aiShowLiveCursor = e.target.checked;
+            });
+        });
+    }
+
+    const aiHumanTypingToggle = settingsPage.querySelector('#tabs-ai-human-typing-toggle');
+    if (aiHumanTypingToggle) {
+        aiHumanTypingToggle.addEventListener('change', (e) => {
+            window.AppState.update(state => {
+                state.aiHumanTyping = e.target.checked;
+            });
+        });
+    }
+
+    const aiConfirmToggle = settingsPage.querySelector('#tabs-ai-confirm-toggle');
+    if (aiConfirmToggle) {
+        aiConfirmToggle.addEventListener('change', (e) => {
+            window.AppState.update(state => {
+                state.aiRequireConfirmation = e.target.checked;
+            });
+        });
+    }
+
+    const aiSpeedSlider = settingsPage.querySelector('#tabs-ai-speed-slider');
+    const aiSpeedDisplay = settingsPage.querySelector('#tabs-ai-speed-display');
+    if (aiSpeedSlider && aiSpeedDisplay) {
+        aiSpeedSlider.addEventListener('input', (e) => {
+            aiSpeedDisplay.innerText = `${parseInt(e.target.value, 10)} ms`;
+        });
+        aiSpeedSlider.addEventListener('change', (e) => {
+            const val = parseInt(e.target.value, 10);
+            window.AppState.update(state => {
+                state.aiActionDelayMs = val;
+                state.aiTypingDelayMs = Math.max(0, Math.round(val / 6));
             });
         });
     }

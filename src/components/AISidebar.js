@@ -1,4 +1,5 @@
 import { BaseComponent } from './BaseComponent.js';
+import { BackendClient } from '../services/BackendClient.js';
 
 export class AISidebar extends BaseComponent {
     constructor() {
@@ -77,7 +78,8 @@ export class AISidebar extends BaseComponent {
                 isAiStreaming: state.isAiStreaming,
                 aiProvider: state.aiProvider,
                 activeTabId: state.activeTabId,
-                tabs: state.tabs
+                tabs: state.tabs,
+                aiActionHistory: state.aiActionHistory || []
             });
         });
 
@@ -603,8 +605,8 @@ export class AISidebar extends BaseComponent {
                             <button class="ai-input-btn" id="ai-mic-btn" title="Voice input">
                                 <i class="hgi-stroke hgi-mic-01" style="font-size: 16px;"></i>
                             </button>
-                            <button class="ai-send-btn" id="ai-chat-send" aria-label="Send Message" style="display: flex; align-items: center; justify-content: center;">
-                                <i class="hgi-stroke hgi-waveform" style="font-size: 14px;"></i>
+                            <button class="ai-send-btn" id="${isStreaming ? 'ai-chat-stop' : 'ai-chat-send'}" aria-label="${isStreaming ? 'Stop AI Task' : 'Send Message'}" title="${isStreaming ? 'Stop AI task' : 'Send'}" style="display: flex; align-items: center; justify-content: center; background: ${isStreaming ? '#E81123' : 'var(--color-input-focus-border)'};">
+                                <i class="hgi-stroke ${isStreaming ? 'hgi-square' : 'hgi-waveform'}" style="font-size: 14px;"></i>
                             </button>
                         </div>
                     </div>
@@ -697,6 +699,7 @@ export class AISidebar extends BaseComponent {
 
         const input = this.querySelector('#ai-chat-input');
         const sendBtn = this.querySelector('#ai-chat-send');
+        const stopBtn = this.querySelector('#ai-chat-stop');
         const setupLink = this.querySelector('.ai-setup-link');
 
         if (setupLink) {
@@ -973,6 +976,10 @@ export class AISidebar extends BaseComponent {
             });
         }
 
+        if (stopBtn) {
+            stopBtn.addEventListener('click', () => this.stopCurrentTask('Stopped by user.'));
+        }
+
         this.bindConfirmationCardListeners();
     }
 
@@ -1004,13 +1011,20 @@ export class AISidebar extends BaseComponent {
         if (!input) return;
         const val = input.value.trim();
         if (!val) return;
+        if (/^\/?(stop|cancel|abort)$/i.test(val)) {
+            input.value = '';
+            this.stopCurrentTask('Stopped by command.');
+            return;
+        }
 
         const isWebSearch = this.state.isWebSearchActive;
 
         window.AppState.update(state => {
             state.chatHistory.push({ sender: 'user', text: val });
             state.isAiStreaming = true;
+            state.aiCancelRequested = false;
             state.taskLogs = []; 
+            state.recordAiAction?.({ type: 'prompt', status: 'running', reason: val, tab_id: state.activeTabId });
         });
 
         input.value = '';
@@ -1039,25 +1053,34 @@ export class AISidebar extends BaseComponent {
                 this.runFlightsDemo();
             } else if (lowerVal === '/help' || lowerVal.includes('help') || lowerVal.includes('shortcuts')) {
                 this.runHelpDemo();
-            } else if (this.tryRunBrowserCommand(val)) {
-                return;
             } else {
-                this.runQADemo(val);
+                this.tryRunBrowserCommand(val).then(handled => {
+                    if (!handled) this.runQADemo(val);
+                });
             }
         }, 800);
     }
 
-    tryRunBrowserCommand(text) {
-        const command = this.parseBrowserCommand(text);
-        if (!command || typeof window.AeroExecuteBrowserCommand !== 'function') {
+    async tryRunBrowserCommand(text) {
+        if (typeof window.AeroExecuteBrowserCommand !== 'function') {
             return false;
         }
+        const command = this.parseBrowserCommand(text) || await this.planBrowserCommand(text);
+        if (!command) return false;
+        const commands = Array.isArray(command) ? command : [command];
 
         window.AppState.update(state => {
-            state.taskLogs.push({ text: `Validating browser command: ${command.type}`, status: 'running' });
+            state.taskLogs.push({ text: `Validating ${commands.length} browser action${commands.length > 1 ? 's' : ''}`, status: 'running' });
+            state.recordAiAction?.({
+                type: 'browser_sequence',
+                status: 'running',
+                reason: text,
+                command_count: commands.length,
+                tab_id: state.activeTabId
+            });
         });
 
-        window.AeroExecuteBrowserCommand(command, text).then(result => {
+        this.executeBrowserCommandSequence(commands, text).then(result => {
             window.AppState.update(state => {
                 const lastLog = state.taskLogs[state.taskLogs.length - 1];
                 if (lastLog?.status === 'running') {
@@ -1067,18 +1090,261 @@ export class AISidebar extends BaseComponent {
                 state.chatHistory.push({
                     sender: 'ai',
                     text: result.ok
-                        ? `Done. I executed \`${command.type}\` through the native Chromium input path after backend policy validation.`
+                        ? `Done. I executed ${commands.length} browser action${commands.length > 1 ? 's' : ''} through the native Chromium input path after backend policy validation.`
                         : `I could not execute that browser action: ${result.message || 'blocked by policy'}`
+                });
+                state.recordAiAction?.({
+                    type: 'browser_sequence',
+                    status: result.ok ? 'success' : 'warning',
+                    reason: text,
+                    command_count: commands.length,
+                    tab_id: state.activeTabId,
+                    message: result.message || ''
                 });
             });
         });
         return true;
     }
 
+    async planBrowserCommand(text) {
+        if (!window.AppState?.aiControlEnabled || !window.AppState?.aiAllowActionExecution) {
+            return null;
+        }
+        const snapshot = window.AppState?.aiAllowPageReading !== false
+            ? await this.getActivePageSnapshot()
+            : null;
+        const tabId = window.AppState?.activeTabId || 'active';
+        const profile = window.AppState?.autofillProfile || {};
+
+        try {
+            const plan = await BackendClient.planAutomation({
+                goal: text,
+                tab_id: tabId,
+                page_snapshot: this.redactSnapshotForPlanner(snapshot),
+                autofill_profile: this.redactAutofillProfile(profile)
+            });
+            if (!Array.isArray(plan.commands) || !plan.commands.length) return null;
+            this.rememberAiDisclosure(text, plan, snapshot);
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: plan.summary || `Planned ${plan.commands.length} browser actions`, status: 'success' });
+                state.recordAiAction?.({
+                    type: 'automation_plan',
+                    status: 'success',
+                    reason: text,
+                    command_count: plan.commands.length,
+                    tab_id: tabId,
+                    message: plan.summary || ''
+                });
+            });
+            return plan.commands;
+        } catch (error) {
+            const fallback = this.localPlanner(text, snapshot, profile);
+            if (!fallback?.length) return null;
+            this.rememberAiDisclosure(text, {
+                summary: `Local fallback planned ${fallback.length} action${fallback.length === 1 ? '' : 's'}.`,
+                commands: fallback,
+                disclosure: this.localDisclosure(text, snapshot, fallback)
+            }, snapshot);
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `Local planner created ${fallback.length} action${fallback.length === 1 ? '' : 's'}`, status: 'success' });
+            });
+            return fallback;
+        }
+    }
+
+    redactSnapshotForPlanner(snapshot) {
+        if (!snapshot) return null;
+        return {
+            url: snapshot.url || '',
+            title: snapshot.title || '',
+            text: String(snapshot.text || '').slice(0, 6000),
+            headings: (snapshot.headings || []).slice(0, 12),
+            links: (snapshot.links || []).slice(0, 25).map(link => ({
+                text: String(link.text || '').slice(0, 120),
+                href: link.href || ''
+            })),
+            interactives: (snapshot.interactives || []).slice(0, 80).map(item => ({
+                role: item.role || '',
+                label: item.label || '',
+                tag: item.tag || '',
+                inputType: item.inputType || '',
+                name: item.name || '',
+                idAttr: item.idAttr || '',
+                placeholder: item.placeholder || '',
+                autocomplete: item.autocomplete || '',
+                required: Boolean(item.required),
+                disabled: Boolean(item.disabled)
+            })),
+            forms: (snapshot.forms || []).slice(0, 12)
+        };
+    }
+
+    redactAutofillProfile(profile = {}) {
+        const clean = {};
+        ['fullName', 'email', 'phone', 'addressLine1', 'addressLine2', 'city', 'state', 'zip', 'country'].forEach(key => {
+            clean[key] = String(profile[key] || '').trim();
+        });
+        return clean;
+    }
+
+    rememberAiDisclosure(goal, plan, snapshot) {
+        const disclosure = {
+            timestamp: new Date().toISOString(),
+            goal,
+            summary: plan.summary || '',
+            commandCount: plan.commands?.length || 0,
+            commands: (plan.commands || []).map(command => ({
+                type: command.type,
+                target: command.target?.label || command.url || command.key || '',
+                sensitive: Boolean(command.sensitive),
+                textPreview: command.sensitive ? '[redacted]' : String(command.text || '').slice(0, 80)
+            })),
+            page: {
+                url: snapshot?.url || plan.disclosure?.page?.url || '',
+                title: snapshot?.title || plan.disclosure?.page?.title || '',
+                textChars: snapshot?.text?.length || plan.disclosure?.page?.text_chars || 0,
+                controls: snapshot?.interactives?.length || plan.disclosure?.page?.controls || 0,
+                forms: snapshot?.forms?.length || plan.disclosure?.page?.forms || 0
+            },
+            disclosure: plan.disclosure || null
+        };
+        window.AppState.update(state => {
+            state.lastAiContextDisclosure = disclosure;
+        });
+    }
+
+    localDisclosure(goal, snapshot, commands) {
+        return {
+            goal,
+            page: {
+                url: snapshot?.url || '',
+                title: snapshot?.title || '',
+                text_chars: snapshot?.text?.length || 0,
+                controls: snapshot?.interactives?.length || 0,
+                forms: snapshot?.forms?.length || 0
+            },
+            plan: {
+                command_count: commands.length,
+                sensitive_field_count: commands.filter(command => command.sensitive).length
+            }
+        };
+    }
+
+    localPlanner(text, snapshot, profile) {
+        const input = String(text || '').trim();
+        const lower = input.toLowerCase();
+        const tabId = window.AppState?.activeTabId || 'active';
+        if (!/(autofill|fill my|fill form|my details|contact form|sign up|signup)/i.test(input)) {
+            return null;
+        }
+        const commands = [];
+        const pairs = [
+            ['name', profile.fullName],
+            ['email', profile.email],
+            ['phone', profile.phone],
+            ['address', profile.addressLine1],
+            ['address line 2', profile.addressLine2],
+            ['city', profile.city],
+            ['state', profile.state],
+            ['zip', profile.zip],
+            ['country', profile.country]
+        ];
+        pairs.forEach(([label, value]) => {
+            if (String(value || '').trim()) {
+                commands.push(this.fillByLabelCommand(tabId, label, value, false));
+            }
+        });
+        if (/submit|send|continue|next/i.test(lower)) {
+            commands.push(this.clickByLabelCommand(tabId, lower.includes('send') ? 'send' : lower.includes('next') ? 'next' : lower.includes('continue') ? 'continue' : 'submit'));
+        }
+        return commands.length ? commands : null;
+    }
+
+    async executeBrowserCommandSequence(commands, reason) {
+        const results = [];
+        for (const command of commands) {
+            if (window.AppState?.aiCancelRequested) {
+                return { ok: false, message: 'AI task stopped by user.', results };
+            }
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `Running ${command.type}`, status: 'running' });
+                state.activeTaskStep = command.type;
+                state.recordAiAction?.({
+                    type: command.type,
+                    status: 'running',
+                    reason,
+                    tab_id: state.activeTabId,
+                    command
+                });
+            });
+            const result = await window.AeroExecuteBrowserCommand(command, reason);
+            results.push(result);
+            window.AppState.update(state => {
+                const lastLog = state.taskLogs[state.taskLogs.length - 1];
+                if (lastLog?.status === 'running') {
+                    lastLog.status = result.ok ? 'success' : 'warning';
+                }
+                state.recordAiAction?.({
+                    type: command.type,
+                    status: result.ok ? 'success' : 'warning',
+                    reason,
+                    tab_id: state.activeTabId,
+                    message: result.message || ''
+                });
+            });
+            if (!result.ok) return { ...result, results };
+            await new Promise(resolve => setTimeout(resolve, 120));
+        }
+        return { ok: true, results };
+    }
+
+    stopCurrentTask(reason = 'Stopped by user.') {
+        this.simulatedTasks = [];
+        if (this.taskInterval) {
+            clearInterval(this.taskInterval);
+            this.taskInterval = null;
+        }
+        window.AppState.requestAiCancel?.(reason);
+        window.AppState.update(state => {
+            state.chatHistory.push({ sender: 'ai', text: `Stopped. ${reason}` });
+            state.isAiStreaming = false;
+            state.activeTaskStep = null;
+        });
+    }
+
     parseBrowserCommand(text) {
         const input = String(text || '').trim();
         const lower = input.toLowerCase();
         const activeTabId = window.AppState?.activeTabId || 'active';
+
+        const sequenceParts = input
+            .split(/\s+(?:and then|then|and)\s+/i)
+            .map(part => part.trim())
+            .filter(Boolean);
+        if (sequenceParts.length > 1) {
+            const commands = sequenceParts.map(part => this.parseBrowserCommand(part));
+            if (commands.every(Boolean) && commands.every(command => !Array.isArray(command))) {
+                return commands;
+            }
+        }
+
+        const loginMatch = input.match(/^login\s+with\s+email\s+(.+?)\s+password\s+(.+)$/i)
+            || input.match(/^sign\s+in\s+with\s+email\s+(.+?)\s+password\s+(.+)$/i);
+        if (loginMatch) {
+            return [
+                this.fillByLabelCommand(activeTabId, 'email', loginMatch[1], false),
+                this.fillByLabelCommand(activeTabId, 'password', loginMatch[2], true),
+                this.clickByLabelCommand(activeTabId, 'login')
+            ];
+        }
+
+        const searchMatch = input.match(/^(?:search|find)\s+(?:for\s+)?(.+)$/i);
+        if (searchMatch && !/^search\s+(down|up)$/i.test(input)) {
+            return [
+                this.fillByLabelCommand(activeTabId, 'search', searchMatch[1], false),
+                { type: 'key_press', tab_id: activeTabId, key: 'Enter', modifiers: [] }
+            ];
+        }
 
         if (lower === 'scroll down' || lower === 'scroll') {
             return { type: 'scroll', tab_id: activeTabId, delta_x: 0, delta_y: 620 };
@@ -1092,6 +1358,16 @@ export class AISidebar extends BaseComponent {
             const rawUrl = openMatch[2].trim();
             const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
             return { type: 'open_page', tab_id: activeTabId, url };
+        }
+
+        const pressMatch = input.match(/^(?:press|hit)\s+(enter|tab|escape|esc|backspace|delete|arrowup|arrowdown|arrowleft|arrowright)$/i);
+        if (pressMatch) {
+            return {
+                type: 'key_press',
+                tab_id: activeTabId,
+                key: pressMatch[1],
+                modifiers: []
+            };
         }
 
         const clickMatch = input.match(/^click\s+(\d{1,4})\s*,?\s+(\d{1,4})$/i);
@@ -1127,45 +1403,55 @@ export class AISidebar extends BaseComponent {
             };
         }
 
-        const fillLabelMatch = input.match(/^(?:fill|type)\s+(.+?)\s+(?:with|as)\s+(.+)$/i)
-            || input.match(/^type\s+(.+?)\s+in\s+(.+)$/i);
+        const fillLabelMatch = input.match(/^(?:fill|type|enter|put)\s+(.+?)\s+(?:with|as|=)\s+(.+)$/i)
+            || input.match(/^type\s+(.+?)\s+in(?:to)?\s+(.+)$/i)
+            || input.match(/^enter\s+(.+?)\s+in(?:to)?\s+(.+)$/i)
+            || input.match(/^(.+?)\s+(?:with|=)\s+(.+)$/i);
         if (fillLabelMatch) {
             const isTypeIn = /^type\s+/i.test(input) && /\s+in\s+/i.test(input);
             const label = isTypeIn ? fillLabelMatch[2].trim() : fillLabelMatch[1].trim();
             const textValue = isTypeIn ? fillLabelMatch[1].trim() : fillLabelMatch[2].trim();
-            return {
-                type: 'fill',
-                tab_id: activeTabId,
-                target: {
-                    target_type: 'accessibility_node',
-                    ax_node_id: label,
-                    label
-                },
-                text: textValue,
-                sensitive: /password|otp|card|cvv|pin/i.test(label),
-                needs_resolution: true
-            };
+            return this.fillByLabelCommand(activeTabId, label, textValue, /password|otp|card|cvv|pin/i.test(label));
         }
 
-        const clickLabelMatch = input.match(/^click\s+(.+)$/i);
+        const clickLabelMatch = input.match(/^(?:click|tap|press)\s+(.+)$/i) || input.match(/^(submit|search|login|sign in|continue|next)$/i);
         if (clickLabelMatch) {
             const label = clickLabelMatch[1].trim();
             if (!/^\d{1,4}\s*,?\s+\d{1,4}$/.test(label)) {
-                return {
-                    type: 'click',
-                    tab_id: activeTabId,
-                    target: {
-                        target_type: 'accessibility_node',
-                        ax_node_id: label,
-                        label
-                    },
-                    button: 'left',
-                    needs_resolution: true
-                };
+                return this.clickByLabelCommand(activeTabId, label);
             }
         }
 
         return null;
+    }
+
+    fillByLabelCommand(tabId, label, text, sensitive = false) {
+        return {
+            type: 'fill',
+            tab_id: tabId,
+            target: {
+                target_type: 'accessibility_node',
+                ax_node_id: label,
+                label
+            },
+            text,
+            sensitive,
+            needs_resolution: true
+        };
+    }
+
+    clickByLabelCommand(tabId, label) {
+        return {
+            type: 'click',
+            tab_id: tabId,
+            target: {
+                target_type: 'accessibility_node',
+                ax_node_id: label,
+                label
+            },
+            button: 'left',
+            needs_resolution: true
+        };
     }
 
     runFlightsDemo() {
@@ -1185,7 +1471,12 @@ export class AISidebar extends BaseComponent {
         });
 
         let currentIdx = 0;
-        const interval = setInterval(() => {
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
             if (currentIdx < this.simulatedTasks.length) {
                 const step = this.simulatedTasks[currentIdx];
                 
@@ -1210,7 +1501,8 @@ export class AISidebar extends BaseComponent {
                 document.dispatchEvent(new CustomEvent('viewport-highlight-step', { detail: { stepIndex: currentIdx } }));
                 currentIdx++;
             } else {
-                clearInterval(interval);
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                     state.taskLogs[state.taskLogs.length - 1].status = 'warning';
@@ -1254,7 +1546,12 @@ export class AISidebar extends BaseComponent {
         let streamedText = '';
         const words = responseText.split(' ');
         
-        const interval = setInterval(() => {
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
             if (tokenIndex < words.length) {
                 streamedText += (tokenIndex === 0 ? '' : ' ') + words[tokenIndex];
                 window.AppState.update(state => {
@@ -1267,7 +1564,8 @@ export class AISidebar extends BaseComponent {
                 });
                 tokenIndex++;
             } else {
-                clearInterval(interval);
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
@@ -1282,7 +1580,12 @@ export class AISidebar extends BaseComponent {
         let streamedText = '';
         const words = responseText.split(' ');
         
-        const interval = setInterval(() => {
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
             if (tokenIndex < words.length) {
                 streamedText += (tokenIndex === 0 ? '' : ' ') + words[tokenIndex];
                 window.AppState.update(state => {
@@ -1295,7 +1598,8 @@ export class AISidebar extends BaseComponent {
                 });
                 tokenIndex++;
             } else {
-                clearInterval(interval);
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
@@ -1314,7 +1618,12 @@ export class AISidebar extends BaseComponent {
         let streamedText = '';
         const words = responseText.split(' ');
 
-        const interval = setInterval(() => {
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
             if (tokenIndex < words.length) {
                 streamedText += (tokenIndex === 0 ? '' : ' ') + words[tokenIndex];
                 window.AppState.update(state => {
@@ -1327,7 +1636,8 @@ export class AISidebar extends BaseComponent {
                 });
                 tokenIndex++;
             } else {
-                clearInterval(interval);
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                 });
@@ -1378,7 +1688,12 @@ export class AISidebar extends BaseComponent {
         });
 
         let currentIdx = 0;
-        const interval = setInterval(() => {
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
             if (currentIdx < this.simulatedTasks.length) {
                 const step = this.simulatedTasks[currentIdx];
                 window.AppState.update(state => {
@@ -1389,7 +1704,8 @@ export class AISidebar extends BaseComponent {
                 });
                 currentIdx++;
             } else {
-                clearInterval(interval);
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
                     state.chatHistory.push({

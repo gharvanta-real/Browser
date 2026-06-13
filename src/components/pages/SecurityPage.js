@@ -10,7 +10,9 @@ export class SecurityPage extends BaseComponent {
             loading: true,
             blockedTrackers: window.AppState?.blockedTrackers || 0,
             blockedTrackerLog: window.AppState?.blockedTrackerLog || [],
-            taskLogs: window.AppState?.taskLogs || []
+            taskLogs: window.AppState?.taskLogs || [],
+            aiActionHistory: window.AppState?.aiActionHistory || [],
+            lastAiContextDisclosure: window.AppState?.lastAiContextDisclosure || null
         };
     }
 
@@ -19,7 +21,9 @@ export class SecurityPage extends BaseComponent {
             this.setState({
                 blockedTrackers: state.blockedTrackers || 0,
                 blockedTrackerLog: state.blockedTrackerLog || [],
-                taskLogs: state.taskLogs || []
+                taskLogs: state.taskLogs || [],
+                aiActionHistory: state.aiActionHistory || [],
+                lastAiContextDisclosure: state.lastAiContextDisclosure || null
             });
         });
         super.connectedCallback();
@@ -43,6 +47,8 @@ export class SecurityPage extends BaseComponent {
         const blocked = this.state.blockedTrackerLog.slice(0, 8);
         const logs = this.state.taskLogs.slice(-8).reverse();
         const audits = this.state.auditEvents.slice(0, 8);
+        const aiHistory = (this.state.aiActionHistory || []).slice(0, 10);
+        const disclosure = this.state.lastAiContextDisclosure;
 
         return `
             <div class="security-page" style="height: 100%; overflow-y: auto; background: var(--color-viewport-bg); color: var(--color-viewport-text); font-family: var(--font-ui); padding: 36px;">
@@ -57,7 +63,7 @@ export class SecurityPage extends BaseComponent {
 
                     <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
                         ${this.metricCard('Trackers blocked', this.state.blockedTrackers, 'webRequest shield is active')}
-                        ${this.metricCard('Audit events', this.state.auditEvents.length, 'backend action log')}
+                        ${this.metricCard('AI actions', this.state.aiActionHistory.length, 'local durable action history')}
                         ${this.metricCard('Partial PRD areas', partialAreas.length, 'implemented but not production-complete')}
                         ${this.metricCard('Native gates', 'On', 'Electron confirmation for gated actions')}
                     </div>
@@ -86,10 +92,26 @@ export class SecurityPage extends BaseComponent {
                             </div>
                         `).join('') : this.empty('No backend audit events yet.'))}
 
+                        ${this.panel('AI action history', aiHistory.length ? aiHistory.map(event => `
+                            <div style="display: flex; gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--color-viewport-border);">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: ${event.status === 'success' ? '#188038' : event.status === 'running' ? '#1A73E8' : '#D93025'};"></span>
+                                <div style="min-width: 0;">
+                                    <strong style="display: block; font-size: 12px;">${this.escape(event.type || 'ai_action')} - ${this.escape(event.status || 'unknown')}</strong>
+                                    <span style="display: block; font-size: 11px; color: var(--color-viewport-text-muted); overflow-wrap: anywhere;">${this.escape(event.reason || event.message || 'No reason recorded')}</span>
+                                </div>
+                            </div>
+                        `).join('') : this.empty('No durable AI action history yet.'))}
+                    </div>
+
+                    <div>
+                        ${this.panel('What AI saw / sent', disclosure ? this.renderDisclosure(disclosure) : this.empty('No AI planner context captured yet. Run a browser-control prompt from the assistant.'))}
+                    </div>
+
+                    <div>
                         ${this.panel('Remaining production gaps', partialAreas.slice(0, 8).map(item => `
                             <div style="padding: 10px 0; border-bottom: 1px solid var(--color-viewport-border);">
-                                <strong style="display: block; font-size: 12px;">${item.area.replace(/_/g, ' ')}</strong>
-                                <span style="display: block; font-size: 11px; color: var(--color-viewport-text-muted);">${(item.missing_for_production || []).slice(0, 3).join(', ')}</span>
+                                <strong style="display: block; font-size: 12px;">${this.escape(item.area.replace(/_/g, ' '))}</strong>
+                                <span style="display: block; font-size: 11px; color: var(--color-viewport-text-muted);">${this.escape((item.missing_for_production || []).slice(0, 3).join(', '))}</span>
                             </div>
                         `).join(''))}
                     </div>
@@ -121,12 +143,59 @@ export class SecurityPage extends BaseComponent {
         return `<div style="padding: 22px 0; color: var(--color-viewport-text-muted); font-size: 12px;">${text}</div>`;
     }
 
+    renderDisclosure(disclosure) {
+        const commands = disclosure.commands || [];
+        return `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div>
+                    <div style="font-size: 11px; color: var(--color-viewport-text-muted);">Last goal</div>
+                    <div style="font-size: 13px; font-weight: 650; margin-top: 4px; overflow-wrap: anywhere;">${this.escape(disclosure.goal || '')}</div>
+                    <div style="font-size: 11px; color: var(--color-viewport-text-muted); margin-top: 12px;">Page</div>
+                    <div style="font-size: 12px; margin-top: 4px; overflow-wrap: anywhere;">${this.escape(disclosure.page?.title || 'Untitled')}</div>
+                    <div style="font-size: 11px; color: var(--color-viewport-text-muted); overflow-wrap: anywhere;">${this.escape(disclosure.page?.url || '')}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                    ${this.smallStat('Text chars', disclosure.page?.textChars || 0)}
+                    ${this.smallStat('Controls', disclosure.page?.controls || 0)}
+                    ${this.smallStat('Forms', disclosure.page?.forms || 0)}
+                </div>
+            </div>
+            <div style="margin-top: 14px; border-top: 1px solid var(--color-viewport-border);">
+                ${commands.length ? commands.map(command => `
+                    <div style="display: grid; grid-template-columns: 90px 1fr 90px; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-viewport-border); align-items: center;">
+                        <strong style="font-size: 12px;">${this.escape(command.type || '')}</strong>
+                        <span style="font-size: 12px; color: var(--color-viewport-text-muted); overflow-wrap: anywhere;">${this.escape(command.target || command.textPreview || '')}</span>
+                        <span style="font-size: 11px; color: ${command.sensitive ? '#D93025' : '#188038'};">${command.sensitive ? 'redacted' : 'visible'}</span>
+                    </div>
+                `).join('') : this.empty('No commands recorded in the last disclosure.')}
+            </div>
+        `;
+    }
+
+    smallStat(label, value) {
+        return `
+            <div style="background: var(--color-viewport-bg); border: 1px solid var(--color-viewport-border); border-radius: 8px; padding: 10px;">
+                <div style="font-size: 18px; font-weight: 750;">${this.escape(value)}</div>
+                <div style="font-size: 10px; color: var(--color-viewport-text-muted); margin-top: 3px;">${label}</div>
+            </div>
+        `;
+    }
+
     host(url) {
         try {
             return new URL(url).hostname;
         } catch {
             return 'blocked resource';
         }
+    }
+
+    escape(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     afterRender() {

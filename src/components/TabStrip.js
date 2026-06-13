@@ -38,6 +38,10 @@ export class TabStrip extends BaseComponent {
 
             if (tab.hibernated) {
                 tabIcon = `<i class="hgi-stroke hgi-moon-01" style="font-size: 13px; opacity: 0.6;"></i>`;
+            } else if (tab.loadError) {
+                tabIcon = `<i class="hgi-stroke hgi-alert-circle" style="font-size: 13px; color: #D93025;"></i>`;
+            } else if (tab.loading) {
+                tabIcon = `<i class="hgi-stroke hgi-loading-03" style="font-size: 13px; color: var(--color-input-focus-border);"></i>`;
             } else if (tab.url) {
                 const urlStr = tab.url;
                 if (urlStr.startsWith('aero://') || urlStr.startsWith('browser://')) {
@@ -66,7 +70,7 @@ export class TabStrip extends BaseComponent {
                         const url = new URL(urlStr);
                         if (url.protocol === 'http:' || url.protocol === 'https:') {
                             const domain = url.hostname.replace('www.', '');
-                            const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
+                            const faviconUrl = tab.favicon || `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
                             tabIcon = `
                                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;">
                                     <img src="${faviconUrl}" 
