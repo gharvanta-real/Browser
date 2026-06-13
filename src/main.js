@@ -300,18 +300,33 @@ customElements.define('browser-addresses-page', AddressesPage);
 customElements.define('browser-tools-page', ToolsPage);
 customElements.define('browser-ai-setup-page', AISetupPage);
 
-// Global Window Actions (Minimize, Maximize, Close mocks)
+// Global Window Actions (Minimize, Maximize, Close controls)
 document.querySelectorAll('.caption-btn, .win-btn').forEach(btn => {
     btn.addEventListener('click', (event) => {
-        if (!window.aeroNative) return;
         event.preventDefault();
         event.stopPropagation();
-        if (btn.classList.contains('btn-minimize') || btn.classList.contains('win-min')) {
-            window.aeroNative.minimize();
-        } else if (btn.classList.contains('btn-maximize') || btn.classList.contains('win-max')) {
-            window.aeroNative.toggleMaximize();
-        } else if (btn.classList.contains('btn-close') || btn.classList.contains('win-close')) {
-            window.aeroNative.close();
+        
+        const isMin = btn.classList.contains('btn-minimize') || btn.classList.contains('win-min');
+        const isMax = btn.classList.contains('btn-maximize') || btn.classList.contains('win-max');
+        const isClose = btn.classList.contains('btn-close') || btn.classList.contains('win-close');
+        
+        if (window.aeroNative) {
+            if (isMin) {
+                window.aeroNative.minimize();
+            } else if (isMax) {
+                window.aeroNative.toggleMaximize();
+            } else if (isClose) {
+                window.aeroNative.close();
+            }
+        } else {
+            // Fallback mock actions when running in a standard web browser
+            if (isMin) {
+                alert('Minimize Window (Mock Action)');
+            } else if (isMax) {
+                alert('Maximize Window (Mock Action)');
+            } else if (isClose) {
+                alert('Close Window (Mock Action)');
+            }
         }
     });
 });
