@@ -723,11 +723,17 @@ export class Omnibox extends BaseComponent {
         `;
 
         // Position popup absolutely relative to the star button
-        const rect = anchorBtn.getBoundingClientRect();
+        let targetBtn = anchorBtn;
+        if (targetBtn && !document.contains(targetBtn)) {
+            const reFound = document.querySelector('.url-bookmark-btn');
+            if (reFound) targetBtn = reFound;
+        }
+
+        const rect = targetBtn.getBoundingClientRect();
         Object.assign(popup.style, {
             position: 'fixed',
-            top: `${rect.bottom + window.scrollY + 8}px`,
-            left: `${Math.max(12, rect.right + window.scrollX - 360)}px`,
+            top: `${rect.bottom + 8}px`,
+            left: `${Math.max(12, rect.right - 360)}px`,
             width: '360px',
             zIndex: '100000',
             boxSizing: 'border-box'
