@@ -271,7 +271,7 @@ export class AISidebar extends BaseComponent {
         const icon = status === 'success'
             ? 'hgi-checkmark-circle-01'
             : status === 'running'
-                ? 'hgi-clock-01 spin-animation'
+                ? 'hgi-clock-01 activity-pulse-animation'
                 : 'hgi-alert-circle';
         return `
             <div class="activity-item ${status}">
