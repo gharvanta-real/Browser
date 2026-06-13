@@ -1355,16 +1355,22 @@ export class AISidebar extends BaseComponent {
 
         setTimeout(() => {
             const lowerVal = val.toLowerCase();
+            // Page fill/form intent detection — catches natural language like "fill this form" or "is page ko fill karo"
+            const isFillPageIntent = /\b(fill|autofill|bharo|fill kar|bhar de|complete|enter|submit)\b/i.test(lowerVal)
+                && /\b(this|page|form|screen|fields?|inputs?|page ko|ye|yeh|yaha|current|tab)\b/i.test(lowerVal);
             if (isWebSearch) {
                 this.runWebSearchDemo(val);
             } else if (lowerVal === '/summarize' || lowerVal.includes('summarize') || lowerVal.includes('summary') || lowerVal.includes('explain')) {
                 this.runSummarizeDemo();
-            } else if (lowerVal === '/flights' || lowerVal.includes('flight') || lowerVal.includes('tokyo') || lowerVal.includes('book')) {
+            } else if (lowerVal === '/flights' || lowerVal.includes('flight') || lowerVal.includes('tokyo')) {
                 this.runFlightsDemo();
             } else if (lowerVal === '/security' || lowerVal.includes('security') || lowerVal.includes('safety') || lowerVal.includes('scan')) {
                 this.runSecurityScanDemo();
             } else if (lowerVal === '/help' || lowerVal.includes('help') || lowerVal.includes('shortcuts')) {
                 this.runHelpDemo();
+            } else if (isFillPageIntent) {
+                // Delegate to page-aware form fill planner
+                this.runPageFormFill(val);
             } else {
                 this.tryRunBrowserCommand(val).then(handled => {
                     if (!handled) this.runQADemo(val);
@@ -1767,19 +1773,25 @@ export class AISidebar extends BaseComponent {
         const input = String(text || '').trim();
         const lower = input.toLowerCase();
         const tabId = window.AppState?.activeTabId || 'active';
-        if (!/(autofill|fill my|fill form|my details|contact form|sign up|signup)/i.test(input)) {
+        if (!/(autofill|fill my|fill form|my details|contact form|sign up|signup|fill page|fill this|bharo|bhar de)/i.test(input)) {
             return null;
         }
         const commands = [];
         const pairs = [
             ['name', profile.fullName],
+            ['first name', profile.fullName?.split(' ')[0]],
+            ['last name', profile.fullName?.split(' ').slice(1).join(' ')],
             ['email', profile.email],
             ['phone', profile.phone],
+            ['mobile', profile.phone],
             ['address', profile.addressLine1],
+            ['address line 1', profile.addressLine1],
             ['address line 2', profile.addressLine2],
             ['city', profile.city],
             ['state', profile.state],
             ['zip', profile.zip],
+            ['pincode', profile.zip],
+            ['postal code', profile.zip],
             ['country', profile.country]
         ];
         pairs.forEach(([label, value]) => {
@@ -1791,6 +1803,117 @@ export class AISidebar extends BaseComponent {
             commands.push(this.clickByLabelCommand(tabId, lower.includes('send') ? 'send' : lower.includes('next') ? 'next' : lower.includes('continue') ? 'continue' : 'submit'));
         }
         return commands.length ? commands : null;
+    }
+
+    async runPageFormFill(userText) {
+        // Smart page-aware form fill: reads the current page, finds all form fields, and fills them using the autofill profile or AI planning
+        window.AppState.update(state => {
+            state.taskLogs.push({ text: 'Reading page form structure', status: 'running' });
+        });
+        const snapshot = await this.getActivePageSnapshot();
+        const tabId = window.AppState?.activeTabId || 'active';
+        const profile = window.AppState?.autofillProfile || {};
+
+        if (!snapshot) {
+            window.AppState.update(state => {
+                state.isAiStreaming = false;
+                state.chatHistory.push({ sender: 'ai', text: "I couldn't read the current page. Please make sure a webpage is open and page reading is enabled in AI settings." });
+            });
+            return;
+        }
+
+        const interactives = snapshot.interactives || [];
+        const formFields = interactives.filter(el => ['input', 'textarea', 'select'].includes(el.tag?.toLowerCase()) && !el.disabled);
+
+        window.AppState.update(state => {
+            const last = state.taskLogs[state.taskLogs.length - 1];
+            if (last) { last.status = 'success'; last.text = `Found ${formFields.length} fillable field${formFields.length === 1 ? '' : 's'} on page`; }
+        });
+
+        if (!formFields.length) {
+            // No form fields found — tell user and answer using AI context
+            window.AppState.update(state => {
+                state.isAiStreaming = false;
+                state.chatHistory.push({ sender: 'ai', text: `I don't see any form fields on **${snapshot.title || 'this page'}**. If there's a specific field you'd like me to interact with, just tell me its name or describe it.` });
+            });
+            return;
+        }
+
+        // Try to build fill commands from profile first
+        const commands = [];
+        const profileMap = [
+            ['name', profile.fullName, false],
+            ['full name', profile.fullName, false],
+            ['first name', profile.fullName?.split(' ')[0], false],
+            ['last name', profile.fullName?.split(' ').slice(1).join(' '), false],
+            ['email', profile.email, false],
+            ['phone', profile.phone, false],
+            ['mobile', profile.phone, false],
+            ['address', profile.addressLine1, false],
+            ['city', profile.city, false],
+            ['state', profile.state, false],
+            ['zip', profile.zip, false],
+            ['postal code', profile.zip, false],
+            ['pincode', profile.zip, false],
+            ['country', profile.country, false]
+        ];
+
+        formFields.forEach(field => {
+            const fieldLabel = (field.label || field.placeholder || field.name || field.idAttr || '').toLowerCase();
+            const autocomplete = (field.autocomplete || '').toLowerCase();
+            // Find best matching profile value
+            for (const [key, value, sensitive] of profileMap) {
+                if (!String(value || '').trim()) continue;
+                if (fieldLabel.includes(key) || autocomplete.includes(key) || key.includes(fieldLabel)) {
+                    commands.push(this.fillByLabelCommand(tabId, field.label || field.placeholder || fieldLabel, value, sensitive));
+                    break;
+                }
+            }
+        });
+
+        if (commands.length === 0) {
+            // Profile is empty or no match — fall back to AI planner
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: 'No autofill profile set — asking AI to plan', status: 'running' });
+            });
+            const aiCommands = await this.planBrowserCommand(userText);
+            if (!aiCommands || (Array.isArray(aiCommands) && !aiCommands.length)) {
+                window.AppState.update(state => {
+                    state.isAiStreaming = false;
+                    state.chatHistory.push({ sender: 'ai', text: `I found ${formFields.length} form fields but your autofill profile is empty, so I don't know what to fill in. Go to **AI Settings → Autofill Profile** to add your name, email, and other details — then I can fill forms for you automatically.` });
+                });
+                return;
+            }
+            const cmdList = Array.isArray(aiCommands) ? aiCommands : [aiCommands];
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `AI planned ${cmdList.length} fill action${cmdList.length === 1 ? '' : 's'}`, status: 'success' });
+            });
+            this.executeBrowserCommandSequence(cmdList, userText).then(result => {
+                window.AppState.update(state => {
+                    state.isAiStreaming = false;
+                    state.chatHistory.push({ sender: 'ai', text: result.ok ? `Done! Filled ${cmdList.length} field${cmdList.length === 1 ? '' : 's'} on the page.` : `I ran into a problem: ${result.message || 'some fields could not be filled'}.` });
+                });
+            });
+            return;
+        }
+
+        window.AppState.update(state => {
+            state.taskLogs.push({ text: `Filling ${commands.length} matched field${commands.length === 1 ? '' : 's'}`, status: 'running' });
+        });
+
+        this.executeBrowserCommandSequence(commands, userText).then(result => {
+            const unfilled = formFields.length - commands.length;
+            let message = result.ok
+                ? `Done! Filled ${commands.length} field${commands.length === 1 ? '' : 's'} on **${snapshot.title || 'this page'}**.`
+                : `Filled some fields but hit a problem: ${result.message || 'one field could not be filled'}.`;
+            if (unfilled > 0) {
+                message += ` (${unfilled} field${unfilled === 1 ? '' : 's'} had no match in your autofill profile.)`;
+            }
+            window.AppState.update(state => {
+                state.isAiStreaming = false;
+                state.chatHistory.push({ sender: 'ai', text: message });
+            });
+        });
     }
 
     async executeBrowserCommandSequence(commands, reason) {
@@ -2246,15 +2369,15 @@ export class AISidebar extends BaseComponent {
             }
         });
 
-        let responseText = `I processed your request: *"${query}"*.${pageLine}\n\nThe browser now runs external pages inside Electron Chromium webviews, while the Aether Agent Runtime can receive page snapshots for AI reasoning.`;
+        let responseText = '';
         try {
             const result = await this.callAiCompletion(augmentedPrompt, snapshot);
-            responseText = result.text || responseText;
-            if (result.provider) {
-                responseText += `\n\n_Answered by ${result.provider} / ${result.model} in ${result.latency_ms}ms._`;
-            }
+            responseText = result.text || '';
         } catch (error) {
-            responseText += `\n\n_AI provider route unavailable: ${error.message || 'setup incomplete'}_.`;
+            responseText = `I couldn't reach an AI provider right now. ${error.message || 'Please check your AI settings.'}\n${pageLine}`;
+        }
+        if (!responseText) {
+            responseText = `I read the page but I'm not sure what you're asking. Could you rephrase?${pageLine}`;
         }
 
         this.streamAssistantText(responseText);
@@ -2276,13 +2399,16 @@ export class AISidebar extends BaseComponent {
             provider,
             page_context: pageContext,
             system: [
-                'You are Aero, a native AI browser assistant inside the user browser.',
-                'Speak naturally like a capable human teammate, not like a demo or status bot.',
-                'Use the active page context when it is provided. Mention useful facts from the page, links, forms, and visible controls when relevant.',
-                'If the user asks you to do something in the browser, be concise and action-oriented. Do not claim you clicked or typed unless the browser action tool actually executed.',
-                'If the request is unclear, ask one short clarifying question. Keep normal answers short, practical, and friendly.'
+                'You are Aero, an intelligent AI assistant built into the Aero Browser. You are NOT a demo, not a chatbot prototype, and not a script.',
+                'You have real-time access to the page the user is currently viewing, including its title, visible text, headings, links, form fields, and interactive controls. Use this context actively — quote from it, refer to specific parts, and make your answers grounded in the actual page.',
+                'Speak like a smart, helpful colleague — direct, warm, and concise. Never say "Certainly!", "Sure!", "Of course!", or other empty filler phrases.',
+                'When the page context is available and the user asks about it, answer using the actual content from the page. Do not say vague things like "I can see your browser". Instead say specific things like "This page is a login form for DocFly" or "The form has 3 fields: Email, Password, and Remember Me."',
+                'If you see form fields in the page context (interactives list), describe them clearly when relevant. Tell the user what you can fill, what data you would need, and offer to do it.',
+                'If the user asks you to do something in the browser (click, fill, open, scroll), confirm what you are about to do and then let the browser action tool handle it. Do NOT describe fake actions.',
+                'If the user types in Hinglish (Hindi + English mix), reply naturally in the same language mix — do not force all-English replies.',
+                'Keep answers focused and proportionate. For simple questions give 1-3 sentences. For complex analysis give well-structured responses with sections. Never pad answers.'
             ].join('\n'),
-            max_output_tokens: 800
+            max_output_tokens: 1200
         });
         window.AppState.update(state => {
             state.aiProvider = provider;
