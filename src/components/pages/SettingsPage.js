@@ -49,7 +49,9 @@ export class SettingsPage extends BaseComponent {
             aiActionDelayMs: window.AppState?.aiActionDelayMs ?? 160,
             aiRequireConfirmation: window.AppState?.aiRequireConfirmation ?? true,
             aiAllowPageReading: window.AppState?.aiAllowPageReading ?? true,
-            aiAllowActionExecution: window.AppState?.aiAllowActionExecution ?? true
+            aiAllowActionExecution: window.AppState?.aiAllowActionExecution ?? true,
+            sitePermissions: window.AppState?.sitePermissions || { camera: 'ask', microphone: 'ask', location: 'ask', notifications: 'ask', aiBlocklist: [] },
+            viewingPermissions: false
         };
     }
 
@@ -94,7 +96,8 @@ export class SettingsPage extends BaseComponent {
                 aiActionDelayMs: state.aiActionDelayMs ?? 160,
                 aiRequireConfirmation: state.aiRequireConfirmation ?? true,
                 aiAllowPageReading: state.aiAllowPageReading ?? true,
-                aiAllowActionExecution: state.aiAllowActionExecution ?? true
+                aiAllowActionExecution: state.aiAllowActionExecution ?? true,
+                sitePermissions: state.sitePermissions
             });
         });
         super.connectedCallback();
@@ -253,21 +256,7 @@ export class SettingsPage extends BaseComponent {
         const backBtn = this.querySelector('#settings-back-btn');
         if (backBtn) {
             backBtn.addEventListener('click', () => {
-                window.AppState.update(state => {
-                    const tabId = state.activeTabId;
-                    if (state.tabs.length <= 1) {
-                        const activeTab = state.tabs.find(t => t.id === tabId);
-                        if (activeTab) {
-                            activeTab.url = 'https://newtab.internal';
-                            activeTab.title = 'New Tab';
-                        }
-                        return;
-                    }
-                    const index = state.tabs.findIndex(t => t.id === tabId);
-                    state.tabs = state.tabs.filter(t => t.id !== tabId);
-                    const newActiveIndex = Math.max(0, index - 1);
-                    state.activeTabId = state.tabs[newActiveIndex].id;
-                });
+                this.navigateBack();
             });
         }
 

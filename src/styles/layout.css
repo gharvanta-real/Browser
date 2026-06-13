@@ -44,7 +44,7 @@
   align-items: center; /* Center tabs vertically for a floating look */
   background: var(--color-window-bg);
   padding: 0 0 0 var(--spacing-md);
-  height: 36px;
+  height: 42px;
   user-select: none;
   border-bottom: 1px solid var(--color-border-light);
   gap: var(--spacing-md);
@@ -55,7 +55,7 @@
 .tab-strip-horizontal {
   display: flex;
   align-items: center; /* Center items vertically */
-  height: 28px;
+  height: 34px;
   margin: 4px 0;
   border-radius: var(--border-radius-lg);
   background: var(--color-input-bg);
@@ -82,18 +82,13 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  height: 44px;
+  height: 40px;
   padding: 0 var(--spacing-md);
   background: var(--color-toolbar-bg);
-  border: none;
-  margin: 6px 6px 0 6px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+  border-bottom: 1px solid var(--color-border-light);
+  margin: 0 !important;
+  border-radius: 0 !important;
   z-index: 10;
-  box-shadow: 0 1px 0 0 var(--color-border-light);
-  transition: border-radius 0.2s ease;
 }
 
 /* Bookmarks Bar */
@@ -104,14 +99,12 @@
   height: 32px;
   padding: 0 var(--spacing-md);
   background: var(--color-toolbar-bg);
-  border: none;
-  margin: 0 6px 0 6px;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
+  border-bottom: 1px solid var(--color-border-light);
+  margin: 0 !important;
+  border-radius: 0 !important;
   font-size: var(--font-size-xs);
   user-select: none;
   z-index: 9;
-  border-top: 1px solid var(--color-border-light);
 }
 
 /* Flex layout for Bookmarks Left */
@@ -129,8 +122,7 @@
   width: 100%;
   overflow: hidden;
   position: relative;
-  /* 6px gap from the toolbar pill above — matches side margins for consistent floating feel */
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 /* Left Navigation Sidebar Hover Trigger Zone */
@@ -202,8 +194,8 @@
 
 /* AI Sidebar Companion Panel */
 .ai-sidebar {
-  width: 320px;
-  min-width: 320px;
+  width: 350px;
+  min-width: 300px;
   height: 100%;
   background: var(--color-toolbar-bg);
   border-left: 1px solid var(--color-border-light);

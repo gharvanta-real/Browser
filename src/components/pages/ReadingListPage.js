@@ -161,9 +161,14 @@ export class ReadingListPage extends BaseComponent {
                 <!-- Center Panel -->
                 <div class="reading-list-main-content">
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                        <div>
-                            <h2 style="margin: 0 0 var(--spacing-xxs); font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Reading List</h2>
-                            <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">${filtered.length} articles</span>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <button id="readinglist-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                            </button>
+                            <div>
+                                <h2 style="margin: 0 0 var(--spacing-xxs); font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Reading List</h2>
+                                <span style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">${filtered.length} articles</span>
+                            </div>
                         </div>
                         <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
                             <select style="background: var(--color-card-bg); border: 1px solid var(--color-viewport-border); border-radius: var(--border-radius-sm); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-viewport-text); outline: none;">
@@ -201,6 +206,10 @@ export class ReadingListPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#readinglist-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         const searchInput = this.querySelector('#reading-list-search-input');
         if (searchInput) {
             searchInput.focus();

@@ -63,6 +63,67 @@ export class AISidebar extends BaseComponent {
         return formattedLines.join('');
     }
 
+    renderActivityStream(logs = [], includeWrapper = true) {
+        const body = `
+            <div class="activity-stream-header">
+                <span class="activity-kicker">Working</span>
+                <span class="activity-summary">${this.escapeHtml(this.summarizeActivity(logs))}</span>
+            </div>
+            <div class="activity-timeline">
+                ${logs.slice(-6).map(log => this.renderActivityItem(log)).join('')}
+            </div>
+        `;
+        return includeWrapper ? `<div class="ai-activity-stream">${body}</div>` : body;
+    }
+
+    renderActivityItem(log = {}) {
+        const status = log.status === 'success' ? 'success' : log.status === 'running' ? 'running' : 'warning';
+        const icon = status === 'success'
+            ? 'hgi-checkmark-circle-01'
+            : status === 'running'
+                ? 'hgi-clock-01 spin-animation'
+                : 'hgi-alert-circle';
+        return `
+            <div class="activity-item ${status}">
+                <span class="activity-node"><i class="hgi-stroke ${icon}"></i></span>
+                <span class="activity-copy">${this.escapeHtml(this.humanizeActivityText(log.text || 'Working'))}</span>
+            </div>
+        `;
+    }
+
+    summarizeActivity(logs = []) {
+        const last = logs[logs.length - 1];
+        if (!last) return 'Preparing';
+        if (logs.some(log => log.status === 'running')) return this.humanizeActivityText(last.text || 'Working');
+        if (logs.every(log => log.status === 'success')) return 'Done';
+        return this.humanizeActivityText(last.text || 'Needs attention');
+    }
+
+    humanizeActivityText(text) {
+        return String(text || '')
+            .replace(/^Validating\s+\d+\s+browser action(s)?/i, 'Safety check')
+            .replace(/^Running open_page/i, 'Opening page')
+            .replace(/^Running click/i, 'Clicking target')
+            .replace(/^Running fill/i, 'Typing into field')
+            .replace(/^Running key_press/i, 'Pressing key')
+            .replace(/^Running scroll/i, 'Scrolling page')
+            .replace(/^Executed open_page through native browser input \(verified\)/i, 'Page changed')
+            .replace(/^Executed open_page through native browser input \(uncertain\)/i, 'Opened, waiting to verify')
+            .replace(/^Planned \d+ action for open\/navigate\./i, 'Planned navigation')
+            .replace(/^Planned \d+ direct page action.*$/i, 'Resolved from visible page')
+            .replace(/^Found visible target:\s*/i, 'Target: ')
+            .replace(/^AI model planner created/i, 'Model planned')
+            .replace(/^Local planner created/i, 'Local plan ready');
+    }
+
+    escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     connectedCallback() {
         window.AppState.subscribe(state => {
             // Toggle sidebar display dynamically (Chrome Side Panel logic)
@@ -211,7 +272,7 @@ export class AISidebar extends BaseComponent {
                     existingWrappers[i].remove();
                 }
 
-                // B. Update or append task logs inside activity stream
+                // B. Update or append task logs inside the compact activity stream
                 let activityStream = scroller.querySelector('.ai-activity-stream');
                 if (logs.length > 0) {
                     if (!activityStream) {
@@ -220,25 +281,7 @@ export class AISidebar extends BaseComponent {
                         scroller.appendChild(activityStream);
                     }
                     
-                    const logsHtml = `
-                        <div style="font-weight: var(--font-weight-semibold); margin-bottom: var(--spacing-xs); font-size: 10px; color: var(--color-text-inactive);">Agent Orchestrator Logs</div>
-                        ${logs.map(log => {
-                            let iconHtml = '';
-                            if (log.status === 'success') {
-                                iconHtml = `<i class="hgi-stroke hgi-checkmark-circle-01" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                            } else if (log.status === 'running') {
-                                iconHtml = `<i class="hgi-stroke hgi-clock-01 spin-animation" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                            } else {
-                                iconHtml = `<i class="hgi-stroke hgi-alert-circle" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                            }
-                            return `
-                                <div class="activity-item ${log.status === 'success' ? 'success' : log.status === 'running' ? 'info' : 'warning'}">
-                                    ${iconHtml}
-                                    <span>${log.text}</span>
-                                </div>
-                            `;
-                        }).join('')}
-                    `;
+                    const logsHtml = this.renderActivityStream(logs, false);
                     if (activityStream.innerHTML !== logsHtml) {
                         activityStream.innerHTML = logsHtml;
                     }
@@ -464,27 +507,7 @@ export class AISidebar extends BaseComponent {
             }).join('');
         }
 
-        const logsHtml = logs.length > 0 ? `
-            <div class="ai-activity-stream">
-                <div style="font-weight: var(--font-weight-semibold); margin-bottom: var(--spacing-xs); font-size: 10px; color: var(--color-text-inactive);">Agent Orchestrator Logs</div>
-                ${logs.map(log => {
-                    let iconHtml = '';
-                    if (log.status === 'success') {
-                        iconHtml = `<i class="hgi-stroke hgi-checkmark-circle-01" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                    } else if (log.status === 'running') {
-                        iconHtml = `<i class="hgi-stroke hgi-clock-01 spin-animation" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                    } else {
-                        iconHtml = `<i class="hgi-stroke hgi-alert-circle" style="font-size: 11px; display: inline-flex; align-items: center; justify-content: center;"></i>`;
-                    }
-                    return `
-                        <div class="activity-item ${log.status === 'success' ? 'success' : log.status === 'running' ? 'info' : 'warning'}">
-                            ${iconHtml}
-                            <span>${log.text}</span>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        ` : '';
+        const logsHtml = logs.length > 0 ? this.renderActivityStream(logs, true) : '';
 
         return `
             <div class="sidebar-resizer"></div>
@@ -519,14 +542,8 @@ export class AISidebar extends BaseComponent {
             <!-- Chat Messages Scroll Area / Welcome Screen -->
             ${isWelcomeState ? `
                 <div class="ai-welcome-container" id="chat-scroller">
-                    <div class="ai-welcome-logo-wrapper">
-                        <div class="ai-welcome-logo">
-                            <svg width="60" height="60" viewBox="0 0 100 100" class="ai-welcome-logo-svg" style="color: var(--color-text-inactive); opacity: 0.85;">
-                                <path d="M 42 80 C 20 60, 25 40, 75 40 C 60 45, 38 52, 42 80 Z" fill="currentColor" opacity="0.5"/>
-                                <path d="M 54 80 C 38 65, 42 52, 75 52 C 63 56, 50 62, 54 80 Z" fill="currentColor" opacity="0.75"/>
-                                <path d="M 66 80 C 56 70, 59 64, 75 64 C 66 67, 62 72, 66 80 Z" fill="currentColor" opacity="1"/>
-                            </svg>
-                        </div>
+                    <div class="ai-welcome-logo-wrapper" style="margin-bottom: var(--spacing-sm);">
+                        <img src="assets/ai_avatar_orb.png" alt="Aero Assistant" style="width: 56px; height: 56px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);" />
                     </div>
                     <h1 class="ai-welcome-title" style="margin-top: -8px; font-weight: var(--font-weight-normal); font-size: 20px;">Assistant</h1>
                 </div>
@@ -674,7 +691,7 @@ export class AISidebar extends BaseComponent {
 
             const onMouseMove = (e) => {
                 const deltaX = startX - e.clientX;
-                const newWidth = Math.max(260, Math.min(window.innerWidth * 0.7, startWidth + deltaX));
+                const newWidth = Math.max(300, Math.min(500, startWidth + deltaX));
                 this.style.width = `${newWidth}px`;
                 this.style.minWidth = `${newWidth}px`;
             };
@@ -1066,11 +1083,11 @@ export class AISidebar extends BaseComponent {
             return false;
         }
         const command = this.parseBrowserCommand(text) || await this.planBrowserCommand(text);
-        if (!command) return false;
+        if (!command || (Array.isArray(command) && !command.length)) return false;
         const commands = Array.isArray(command) ? command : [command];
 
         window.AppState.update(state => {
-            state.taskLogs.push({ text: `Validating ${commands.length} browser action${commands.length > 1 ? 's' : ''}`, status: 'running' });
+            state.taskLogs.push({ text: `Safety check for ${commands.length} action${commands.length > 1 ? 's' : ''}`, status: 'running' });
             state.recordAiAction?.({
                 type: 'browser_sequence',
                 status: 'running',
@@ -1090,7 +1107,7 @@ export class AISidebar extends BaseComponent {
                 state.chatHistory.push({
                     sender: 'ai',
                     text: result.ok
-                        ? `Done. I executed ${commands.length} browser action${commands.length > 1 ? 's' : ''} through the native Chromium input path after backend policy validation.`
+                        ? this.browserActionSuccessMessage(text, commands, result)
                         : `I could not execute that browser action: ${result.message || 'blocked by policy'}`
                 });
                 state.recordAiAction?.({
@@ -1115,6 +1132,29 @@ export class AISidebar extends BaseComponent {
             : null;
         const tabId = window.AppState?.activeTabId || 'active';
         const profile = window.AppState?.autofillProfile || {};
+        if (snapshot) {
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `Read current page: ${snapshot.title || 'active tab'}`, status: 'success' });
+            });
+        }
+        const deterministic = this.planDeterministicPageAction(text, snapshot, tabId);
+        if (deterministic?.length) {
+            this.rememberAiDisclosure(text, {
+                summary: `Planned ${deterministic.length} direct page action${deterministic.length === 1 ? '' : 's'} from visible page context.`,
+                commands: deterministic,
+                disclosure: this.localDisclosure(text, snapshot, deterministic)
+            }, snapshot);
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `Found visible target: ${deterministic[0].description || deterministic[0].target?.label || deterministic[0].url || deterministic[0].type}`, status: 'success' });
+            });
+            return deterministic;
+        }
+        if (this.isReferentialPageAction(text)) {
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: 'Could not find a matching visible page link', status: 'warning' });
+            });
+            return [];
+        }
 
         try {
             const plan = await BackendClient.planAutomation({
@@ -1138,6 +1178,25 @@ export class AISidebar extends BaseComponent {
             });
             return plan.commands;
         } catch (error) {
+            const aiPlan = await this.planWithAiModel(text, snapshot);
+            if (aiPlan?.length) {
+                this.rememberAiDisclosure(text, {
+                    summary: `AI model planned ${aiPlan.length} action${aiPlan.length === 1 ? '' : 's'}.`,
+                    commands: aiPlan,
+                    disclosure: this.localDisclosure(text, snapshot, aiPlan)
+                }, snapshot);
+                window.AppState.update(state => {
+                    state.taskLogs.push({ text: `AI model planner created ${aiPlan.length} action${aiPlan.length === 1 ? '' : 's'}`, status: 'success' });
+                    state.recordAiAction?.({
+                        type: 'model_automation_plan',
+                        status: 'success',
+                        reason: text,
+                        command_count: aiPlan.length,
+                        tab_id: tabId
+                    });
+                });
+                return aiPlan;
+            }
             const fallback = this.localPlanner(text, snapshot, profile);
             if (!fallback?.length) return null;
             this.rememberAiDisclosure(text, {
@@ -1150,6 +1209,182 @@ export class AISidebar extends BaseComponent {
             });
             return fallback;
         }
+    }
+
+    async planWithAiModel(goal, snapshot) {
+        try {
+            const tabId = window.AppState?.activeTabId || 'active';
+            const pageContext = this.redactSnapshotForPlanner(snapshot);
+            const result = await BackendClient.completeAi({
+                prompt: `Goal: ${goal}\n\nReturn a browser automation plan for the visible page.`,
+                page_context: pageContext,
+                system: [
+                    'You are Aero Browser automation planner.',
+                    'Return only JSON, no markdown.',
+                    'Schema: {"commands":[...]}',
+                    'Allowed commands:',
+                    '{"type":"open_page","tab_id":"active","url":"https://example.com"}',
+                    '{"type":"click","tab_id":"active","target":{"target_type":"accessibility_node","ax_node_id":"label","label":"label"},"button":"left","needs_resolution":true}',
+                    '{"type":"fill","tab_id":"active","target":{"target_type":"accessibility_node","ax_node_id":"label","label":"label"},"text":"value","sensitive":false,"needs_resolution":true}',
+                    '{"type":"key_press","tab_id":"active","key":"Enter","modifiers":[]}',
+                    '{"type":"scroll","tab_id":"active","delta_x":0,"delta_y":600}',
+                    'Use labels from the provided page controls. Mark passwords, OTPs, card numbers, CVV, and PINs as sensitive.'
+                ].join('\n'),
+                max_output_tokens: 900
+            });
+            const plan = this.extractJsonPlan(result.text);
+            const commands = Array.isArray(plan?.commands) ? plan.commands : [];
+            return commands
+                .map(command => this.sanitizePlannedCommand(command, tabId))
+                .filter(Boolean)
+                .slice(0, 8);
+        } catch {
+            return null;
+        }
+    }
+
+    planDeterministicPageAction(text, snapshot, tabId) {
+        const input = String(text || '').toLowerCase();
+        if (!snapshot) return null;
+
+        const wantsFirstLink = /\b(open|click|tap|visit|go to)\b/.test(input)
+            && /\b(first|top|1st)\b/.test(input)
+            && /\b(links?|results?|sites?|websites?|urls?)\b/.test(input);
+        if (wantsFirstLink) {
+            const link = this.pickVisibleLink(snapshot, { ordinal: 1 });
+            if (link?.href) {
+                return [{
+                    type: 'open_page',
+                    tab_id: tabId,
+                    url: link.href,
+                    description: `Open ${link.text || link.href}`
+                }];
+            }
+            if (link?.label) {
+                return [this.clickByLabelCommand(tabId, link.label)];
+            }
+        }
+
+        const ordinalMatch = input.match(/\b(open|click|tap|visit|go to)\b.*\b(second|third|fourth|2nd|3rd|4th)\b.*\b(links?|results?|sites?|websites?|urls?)\b/);
+        if (ordinalMatch) {
+            const ordinal = { second: 2, third: 3, fourth: 4, '2nd': 2, '3rd': 3, '4th': 4 }[ordinalMatch[2]] || 1;
+            const link = this.pickVisibleLink(snapshot, { ordinal });
+            if (link?.href) return [{ type: 'open_page', tab_id: tabId, url: link.href, description: `Open ${link.text || link.href}` }];
+            if (link?.label) return [this.clickByLabelCommand(tabId, link.label)];
+        }
+
+        return null;
+    }
+
+    isReferentialPageAction(text) {
+        const input = String(text || '').toLowerCase();
+        return /\b(open|click|tap|visit|go to)\b/.test(input)
+            && /\b(this|that|first|top|second|third|fourth|1st|2nd|3rd|4th)\b/.test(input)
+            && /\b(links?|results?|sites?|websites?|urls?|page)\b/.test(input);
+    }
+
+    pickVisibleLink(snapshot, { ordinal = 1 } = {}) {
+        const links = [
+            ...(snapshot.links || []).map(link => ({
+                text: link.text || '',
+                label: link.text || '',
+                href: link.href || '',
+                source: 'dom_link'
+            })),
+            ...(snapshot.interactives || [])
+                .filter(item => String(item.role || '').toLowerCase() === 'link' || item.href)
+                .map(item => ({
+                    text: item.label || item.href || '',
+                    label: item.label || '',
+                    href: item.href || '',
+                    source: item.source || 'interactive'
+                }))
+        ];
+        const filtered = links
+            .map(link => ({ ...link, href: this.cleanSearchRedirect(link.href) }))
+            .filter(link => this.isMeaningfulPageLink(link));
+        return filtered[Math.max(0, ordinal - 1)] || null;
+    }
+
+    cleanSearchRedirect(href) {
+        try {
+            const url = new URL(href);
+            if (url.hostname.includes('google.') && url.pathname === '/url') {
+                return url.searchParams.get('q') || url.searchParams.get('url') || href;
+            }
+        } catch {}
+        return href;
+    }
+
+    isMeaningfulPageLink(link) {
+        const href = String(link.href || '');
+        const text = String(link.text || link.label || '').trim();
+        if (!/^https?:\/\//i.test(href)) return false;
+        try {
+            const url = new URL(href);
+            const host = url.hostname.replace(/^www\./, '');
+            if (host.includes('google.') && !url.pathname.startsWith('/url')) return false;
+            if (/accounts\.google|support\.google|policies\.google|webcache|translate\.google/i.test(host)) return false;
+            if (!text || /^(cached|similar|translate|more|tools|images|news|videos|shopping|forums|sign in)$/i.test(text)) return false;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    extractJsonPlan(text) {
+        const raw = String(text || '').trim();
+        const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+        const candidate = fenced || raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+        if (!candidate) return null;
+        try {
+            return JSON.parse(candidate);
+        } catch {
+            return null;
+        }
+    }
+
+    sanitizePlannedCommand(command, tabId) {
+        const type = command?.type;
+        if (!['open_page', 'click', 'fill', 'key_press', 'scroll'].includes(type)) return null;
+        if (type === 'open_page') {
+            const url = String(command.url || '');
+            if (!/^https?:\/\//i.test(url)) return null;
+            return { type, tab_id: command.tab_id || tabId, url };
+        }
+        if (type === 'key_press') {
+            const key = String(command.key || '');
+            if (!/^(Enter|Tab|Escape|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/i.test(key)) return null;
+            return { type, tab_id: command.tab_id || tabId, key, modifiers: Array.isArray(command.modifiers) ? command.modifiers : [] };
+        }
+        if (type === 'scroll') {
+            return {
+                type,
+                tab_id: command.tab_id || tabId,
+                delta_x: Number(command.delta_x || 0),
+                delta_y: Number(command.delta_y || 600)
+            };
+        }
+        const label = String(command.target?.label || command.target?.ax_node_id || '').trim();
+        if (!label) return null;
+        const target = {
+            target_type: 'accessibility_node',
+            ax_node_id: label,
+            label
+        };
+        if (type === 'click') {
+            return { type, tab_id: command.tab_id || tabId, target, button: 'left', needs_resolution: true };
+        }
+        const text = String(command.text || '');
+        if (!text) return null;
+        return {
+            type,
+            tab_id: command.tab_id || tabId,
+            target,
+            text,
+            sensitive: Boolean(command.sensitive) || /password|otp|card|cvv|pin/i.test(label),
+            needs_resolution: true
+        };
     }
 
     redactSnapshotForPlanner(snapshot) {
@@ -1172,10 +1407,13 @@ export class AISidebar extends BaseComponent {
                 idAttr: item.idAttr || '',
                 placeholder: item.placeholder || '',
                 autocomplete: item.autocomplete || '',
+                backendDOMNodeId: item.backendDOMNodeId || '',
+                source: item.source || '',
                 required: Boolean(item.required),
                 disabled: Boolean(item.disabled)
             })),
-            forms: (snapshot.forms || []).slice(0, 12)
+            forms: (snapshot.forms || []).slice(0, 12),
+            axTree: snapshot.axTree || null
         };
     }
 
@@ -1277,19 +1515,26 @@ export class AISidebar extends BaseComponent {
                     command
                 });
             });
-            const result = await window.AeroExecuteBrowserCommand(command, reason);
+            let result = await window.AeroExecuteBrowserCommand(command, reason);
+            if (!result.ok && command.needs_resolution) {
+                await new Promise(resolve => setTimeout(resolve, 450));
+                result = await window.AeroExecuteBrowserCommand(command, `${reason} (retry after page settled)`);
+                result.retried = true;
+            }
             results.push(result);
             window.AppState.update(state => {
                 const lastLog = state.taskLogs[state.taskLogs.length - 1];
                 if (lastLog?.status === 'running') {
                     lastLog.status = result.ok ? 'success' : 'warning';
+                    if (result.retried) lastLog.text = `${lastLog.text} (retried)`;
                 }
                 state.recordAiAction?.({
                     type: command.type,
                     status: result.ok ? 'success' : 'warning',
                     reason,
                     tab_id: state.activeTabId,
-                    message: result.message || ''
+                    message: `${result.retried ? 'Retried once. ' : ''}${result.message || result.verification?.detail || ''}`.trim(),
+                    verification: result.verification || null
                 });
             });
             if (!result.ok) return { ...result, results };
@@ -1356,6 +1601,9 @@ export class AISidebar extends BaseComponent {
         const openMatch = input.match(/^(open|go to|navigate to)\s+(.+)$/i);
         if (openMatch) {
             const rawUrl = openMatch[2].trim();
+            if (/\b(this|that|first|top|second|third|fourth|1st|2nd|3rd|4th|links?|results?|sites?|websites?|urls?)\b/i.test(rawUrl) && /\s/.test(rawUrl)) {
+                return null;
+            }
             const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
             return { type: 'open_page', tab_id: activeTabId, url };
         }
@@ -1454,6 +1702,20 @@ export class AISidebar extends BaseComponent {
         };
     }
 
+    browserActionSuccessMessage(originalText, commands, result) {
+        const first = commands[0] || {};
+        if (first.type === 'open_page') {
+            return `Done, I opened ${first.description ? first.description.replace(/^Open\s+/i, '') : first.url}.`;
+        }
+        if (first.type === 'click') {
+            return `Done, I clicked ${first.target?.label || 'the requested control'}.`;
+        }
+        if (first.type === 'fill') {
+            return `Done, I filled ${first.target?.label || 'the requested field'}.`;
+        }
+        return `Done, I completed ${commands.length} browser action${commands.length > 1 ? 's' : ''}.`;
+    }
+
     runFlightsDemo() {
         this.simulatedTasks = [
             { text: 'Accessing Layer 1 (AXTree) structure for flights portal', status: 'success' },
@@ -1529,8 +1791,8 @@ export class AISidebar extends BaseComponent {
     async runSummarizeDemo() {
         const snapshot = await this.getActivePageSnapshot();
         let responseText = '';
-        window.AppState.update(state => {
-            const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+        const fallbackText = (() => {
+            const activeTab = window.AppState?.tabs?.find(t => t.id === window.AppState.activeTabId);
             const pageTitle = snapshot?.title || activeTab?.title || 'Active page';
             const pageUrl = snapshot?.url || activeTab?.url || '';
             const headings = (snapshot?.headings || [])
@@ -1539,38 +1801,16 @@ export class AISidebar extends BaseComponent {
                 .join('\n');
             const text = snapshot?.text || '';
             const excerpt = text.length > 420 ? `${text.slice(0, 420)}...` : text;
-            responseText = `I read the active Chromium page context for **"${pageTitle}"** (URL: \`${pageUrl}\`).\n\n**Quick summary:**\n${excerpt || 'The page loaded, but readable text was limited by site permissions or page structure.'}\n\n${headings ? `**Visible sections:**\n${headings}\n\n` : ''}I can use this same snapshot pipeline for AI answering, form understanding, and safe browser automation.`;
-        });
+            return `I read the active Chromium page context for **"${pageTitle}"** (URL: \`${pageUrl}\`).\n\n**Quick summary:**\n${excerpt || 'The page loaded, but readable text was limited by site permissions or page structure.'}\n\n${headings ? `**Visible sections:**\n${headings}\n\n` : ''}I can use this same snapshot pipeline for AI answering, form understanding, and safe browser automation.`;
+        })();
+        try {
+            const result = await this.callAiCompletion('Summarize this active browser page. Include key points and one safe next action.', snapshot);
+            responseText = result.text || fallbackText;
+        } catch {
+            responseText = fallbackText;
+        }
 
-        let tokenIndex = 0;
-        let streamedText = '';
-        const words = responseText.split(' ');
-        
-        this.taskInterval = setInterval(() => {
-            if (window.AppState?.aiCancelRequested) {
-                clearInterval(this.taskInterval);
-                this.taskInterval = null;
-                return;
-            }
-            if (tokenIndex < words.length) {
-                streamedText += (tokenIndex === 0 ? '' : ' ') + words[tokenIndex];
-                window.AppState.update(state => {
-                    const lastMsg = state.chatHistory[state.chatHistory.length - 1];
-                    if (lastMsg && lastMsg.sender === 'ai' && !lastMsg.card) {
-                        lastMsg.text = streamedText;
-                    } else {
-                        state.chatHistory.push({ sender: 'ai', text: streamedText });
-                    }
-                });
-                tokenIndex++;
-            } else {
-                clearInterval(this.taskInterval);
-                this.taskInterval = null;
-                window.AppState.update(state => {
-                    state.isAiStreaming = false;
-                });
-            }
-        }, 45);
+        this.streamAssistantText(responseText);
     }
 
     runHelpDemo() {
@@ -1612,8 +1852,63 @@ export class AISidebar extends BaseComponent {
         const pageLine = snapshot
             ? `\n\nActive page context: **${snapshot.title || 'Untitled'}** at \`${snapshot.url || 'current tab'}\`. I captured ${snapshot.text?.length || 0} readable characters and ${(snapshot.links || []).length} links.`
             : '';
-        const responseText = `I processed your request: *"${query}"*.${pageLine}\n\nThe browser now runs external pages inside Electron Chromium webviews, while the Aether Agent Runtime can receive page snapshots for AI reasoning, click planning, and safer automation gates.`;
-        
+        let responseText = `I processed your request: *"${query}"*.${pageLine}\n\nThe browser now runs external pages inside Electron Chromium webviews, while the Aether Agent Runtime can receive page snapshots for AI reasoning, click planning, and safer automation gates.`;
+        try {
+            const result = await this.callAiCompletion(query, snapshot);
+            responseText = result.text || responseText;
+            if (result.provider) {
+                responseText += `\n\n_Answered by ${result.provider} / ${result.model} in ${result.latency_ms}ms._`;
+            }
+        } catch (error) {
+            responseText += `\n\n_AI provider route unavailable: ${error.message || 'setup incomplete'}.`;
+        }
+
+        this.streamAssistantText(responseText);
+    }
+
+    async callAiCompletion(prompt, snapshot) {
+        const profile = window.AppState?.aiProfile || await BackendClient.getProfile();
+        const provider = profile?.selected_provider || window.AppState?.aiProvider || 'local';
+        const effectiveProfile = {
+            ...profile,
+            allow_cloud_ai: provider !== 'local' ? true : profile?.allow_cloud_ai
+        };
+        if (effectiveProfile.allow_cloud_ai !== profile?.allow_cloud_ai) {
+            await BackendClient.saveProfile(effectiveProfile);
+        }
+        const pageContext = window.AppState?.aiAllowPageReading === false ? null : this.redactSnapshotForPlanner(snapshot);
+        const result = await BackendClient.completeAi({
+            prompt,
+            provider,
+            page_context: pageContext,
+            system: [
+                'You are Aero, a native AI browser assistant inside the user browser.',
+                'Speak naturally like a capable human teammate, not like a demo or status bot.',
+                'Use the active page context when it is provided. Mention useful facts from the page, links, forms, and visible controls when relevant.',
+                'If the user asks you to do something in the browser, be concise and action-oriented. Do not claim you clicked or typed unless the browser action tool actually executed.',
+                'If the request is unclear, ask one short clarifying question. Keep normal answers short, practical, and friendly.'
+            ].join('\n'),
+            max_output_tokens: 800
+        });
+        window.AppState.update(state => {
+            state.aiProvider = provider;
+            state.aiProfile = effectiveProfile;
+            state.recordAiAction?.({
+                type: 'ai_completion',
+                status: 'success',
+                reason: prompt,
+                provider: result.provider,
+                model: result.model,
+                latency_ms: result.latency_ms,
+                fallback: Boolean(result.fallback),
+                prompt_injection_risk: result.prompt_injection_risk || 'low',
+                context_blocked: Boolean(result.context_blocked)
+            });
+        });
+        return result;
+    }
+
+    streamAssistantText(responseText) {
         let tokenIndex = 0;
         let streamedText = '';
         const words = responseText.split(' ');

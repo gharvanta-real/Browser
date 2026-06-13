@@ -207,7 +207,12 @@ export class DownloadsPage extends BaseComponent {
                 <!-- Center Main Section -->
                 <div class="downloads-main-content" style="flex: 1; padding: 40px var(--spacing-xl); overflow-y: auto;">
                     <div style="max-width: 720px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: var(--spacing-md);">
-                        <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Downloads</h2>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <button id="downloads-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                            </button>
+                            <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Downloads</h2>
+                        </div>
 
                         <!-- Search Input bar -->
                         <div class="search-downloads-bar" style="display: flex; align-items: center; gap: var(--spacing-sm); padding: 0 var(--spacing-lg); height: 40px; background: var(--color-card-bg); border: 1px solid var(--color-viewport-border); border-radius: 8px; box-shadow: var(--shadow-sm); margin-bottom: 4px;">
@@ -302,6 +307,10 @@ export class DownloadsPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#downloads-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         const searchInput = this.querySelector('#downloads-search-input');
         if (searchInput) {
             searchInput.focus();

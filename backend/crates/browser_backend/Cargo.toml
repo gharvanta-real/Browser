@@ -12,6 +12,7 @@ axum.workspace = true
 browser_ai = { path = "../browser_ai" }
 browser_automation = { path = "../browser_automation" }
 browser_cdp = { path = "../browser_cdp" }
+browser_crypto = { path = "../browser_crypto" }
 browser_policy = { path = "../browser_policy" }
 browser_storage = { path = "../browser_storage" }
 chrono.workspace = true

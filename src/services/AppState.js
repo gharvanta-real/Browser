@@ -71,6 +71,17 @@ window.AppState = {
     showLeftSidebar: true,
     blockedTrackers: 0,
     blockedTrackerLog: [],
+    sitePermissions: [],
+    sitePermissions: {
+        camera: 'ask',
+        microphone: 'ask',
+        location: 'ask',
+        notifications: 'ask',
+        aiBlocklist: [
+            { domain: 'facebook.com', status: 'blocked', dateAdded: '2026-06-01' },
+            { domain: 'netflix.com', status: 'blocked', dateAdded: '2026-06-10' }
+        ]
+    },
     
     // Unified Mock Datasets
     bookmarks: [
@@ -419,14 +430,7 @@ window.AppState = {
         { id: 103, title: 'Launch Plan – Slides', domain: 'docs.google.com', time: '8:12 AM', faviconClass: 'hgi-note-01' }
     ],
     
-    downloads: [
-        { id: 201, name: 'Aero_Design_System.fig', domain: 'figma.com', totalBytes: 1.2 * 1024 * 1024 * 1024, downloadedBytes: 728 * 1024 * 1024, speed: 28.4 * 1024 * 1024, status: 'downloading', fileIconClass: 'hgi-brush', color: '#F24E1E' },
-        { id: 202, name: 'Project_Assets_Q2.zip', domain: 'drive.google.com', totalBytes: 3.4 * 1024 * 1024 * 1024, downloadedBytes: 1.6 * 1024 * 1024 * 1024, speed: 19.2 * 1024 * 1024, status: 'downloading', fileIconClass: 'hgi-folder', color: '#FFBA00' },
-        { id: 301, name: 'Q2_Research_Report.pdf', domain: 'docs.google.com', size: '24.1 MB', sizeVal: 24.1 * 1024 * 1024, totalBytes: 24.1 * 1024 * 1024, downloadedBytes: 24.1 * 1024 * 1024, speed: 0, status: 'completed', dateStr: 'Today, 8:47 AM', fileIconClass: 'hgi-note-01', color: '#EA4335' },
-        { id: 302, name: 'Design_System_Assets.zip', domain: 'drive.google.com', size: '1.2 GB', sizeVal: 1.2 * 1024 * 1024 * 1024, totalBytes: 1.2 * 1024 * 1024 * 1024, downloadedBytes: 1.2 * 1024 * 1024 * 1024, speed: 0, status: 'completed', dateStr: 'Yesterday, 4:21 PM', fileIconClass: 'hgi-folder', color: '#FFBA00' },
-        { id: 303, name: 'Aero_Product_Roadmap.pptx', domain: 'aero.com', size: '18.7 MB', sizeVal: 18.7 * 1024 * 1024, totalBytes: 18.7 * 1024 * 1024, downloadedBytes: 18.7 * 1024 * 1024, speed: 0, status: 'completed', dateStr: 'Yesterday, 11:02 AM', fileIconClass: 'hgi-note-01', color: '#1A73E8' },
-        { id: 304, name: 'Aero_Setup_1.4.2.dmg', domain: 'aero.com', size: '128 MB', sizeVal: 128 * 1024 * 1024, totalBytes: 128 * 1024 * 1024, downloadedBytes: 128 * 1024 * 1024, speed: 0, status: 'completed', dateStr: 'May 14, 2024', fileIconClass: 'hgi-settings-01', color: '#2A2C30' }
-    ],
+    downloads: [],
     
     readingList: [
         {
@@ -477,6 +481,7 @@ window.AppState = {
     // State management subscriptions
     listeners: [],
     saveTimer: null,
+    searchIndexTimer: null,
     persistedKeys: [
         'tabs', 'activeTabId', 'activeWorkspace', 'workspaces', 'tabLayout', 'theme',
         'bookmarks', 'bookmarksFolders', 'history', 'recentlyClosed', 'downloads',
@@ -485,10 +490,10 @@ window.AppState = {
         'searchEngine', 'showSearchSuggestions', 'showSearchHistory', 'showSearchAutocomplete',
         'downloadPath', 'askBeforeDownload', 'memorySaver', 'energySaver',
         'showBookmarksBar', 'showLeftSidebar', 'aiProvider', 'aiProfile',
-        'blockedTrackers', 'blockedTrackerLog', 'aiControlEnabled', 'aiShowLiveCursor',
+        'blockedTrackers', 'blockedTrackerLog', 'sitePermissions', 'aiControlEnabled', 'aiShowLiveCursor',
         'aiHumanTyping', 'aiTypingDelayMs', 'aiActionDelayMs', 'aiRequireConfirmation',
         'aiAllowPageReading', 'aiAllowActionExecution', 'aiActionHistory',
-        'lastAiContextDisclosure', 'autofillProfile'
+        'lastAiContextDisclosure'
     ],
     recordAiAction(entry) {
         const event = {
@@ -518,7 +523,26 @@ window.AppState = {
     update(updater) {
         const beforeTabs = new Map(this.tabs.map(tab => [tab.id, { url: tab.url, title: tab.title }]));
         updater(this);
+        
+        // Track per-tab navigation history
+        this.tabs.forEach(tab => {
+            const before = beforeTabs.get(tab.id);
+            if (before && before.url !== tab.url) {
+                if (tab.isGoingBack) {
+                    delete tab.isGoingBack;
+                    return;
+                }
+                if (!tab.navigationHistory) {
+                    tab.navigationHistory = [];
+                }
+                if (before.url && (tab.navigationHistory.length === 0 || tab.navigationHistory[tab.navigationHistory.length - 1] !== before.url)) {
+                    tab.navigationHistory.push(before.url);
+                }
+            }
+        });
+
         this.recordNavigationChanges(beforeTabs);
+        this.indexSearchSoon();
         this.persistSoon();
         this.listeners.forEach(cb => cb(this));
     },
@@ -554,6 +578,79 @@ window.AppState = {
             }
         } catch {}
     },
+    indexSearchSoon() {
+        clearTimeout(this.searchIndexTimer);
+        this.searchIndexTimer = setTimeout(() => this.syncSearchIndex(), 900);
+    },
+    syncSearchIndex() {
+        try {
+            if (!this.backendSnapshotReady) return;
+            const now = new Date().toISOString();
+            const docs = [];
+            (this.tabs || []).forEach(tab => {
+                if (!this.isHistoryUrl(tab.url) && !String(tab.url || '').startsWith('aero://')) return;
+                docs.push({
+                    id: `tab:${tab.id}`,
+                    kind: 'tab',
+                    title: tab.title || tab.url || 'Untitled tab',
+                    url: tab.url || null,
+                    body: `${tab.title || ''} ${tab.url || ''}`,
+                    tags: ['open-tab', tab.workspace || 'Default'],
+                    source: 'tabs',
+                    updated_at: now
+                });
+            });
+            (this.bookmarks || []).filter(item => item.url).forEach(item => {
+                docs.push({
+                    id: `bookmark:${item.id}`,
+                    kind: 'bookmark',
+                    title: item.title || item.url,
+                    url: item.url,
+                    body: item.description || item.displayUrl || item.url,
+                    tags: item.tags || [],
+                    source: item.folder || 'bookmarks',
+                    updated_at: now
+                });
+            });
+            (this.history || []).filter(item => item.url).slice(0, 400).forEach(item => {
+                docs.push({
+                    id: `history:${item.id}`,
+                    kind: 'history',
+                    title: item.title || item.url,
+                    url: item.url,
+                    body: `${item.domain || ''} ${item.date || ''} ${item.time || ''}`,
+                    tags: ['history'],
+                    source: item.domain || 'history',
+                    updated_at: now
+                });
+            });
+            (this.readingList || []).filter(item => item.url).forEach(item => {
+                docs.push({
+                    id: `reading:${item.id}`,
+                    kind: 'reading_list',
+                    title: item.title || item.url,
+                    url: item.url,
+                    body: item.description || item.summary || item.domain || '',
+                    tags: [item.category || 'reading-list'],
+                    source: 'reading-list',
+                    updated_at: now
+                });
+            });
+            (this.downloads || []).filter(item => item.sourceUrl || item.name).slice(0, 250).forEach(item => {
+                docs.push({
+                    id: `download:${item.id}`,
+                    kind: 'download',
+                    title: item.name || item.sourceUrl,
+                    url: item.sourceUrl || null,
+                    body: `${item.domain || ''} ${item.savePath || ''} ${item.status || ''}`,
+                    tags: ['download', item.status || ''],
+                    source: 'downloads',
+                    updated_at: now
+                });
+            });
+            if (docs.length) BackendClient.indexSearchDocuments(docs).catch(() => {});
+        } catch {}
+    },
     async restoreFromBackend() {
         try {
             const result = await BackendClient.loadStateSnapshot();
@@ -570,6 +667,7 @@ window.AppState = {
             }
         } catch {}
         this.backendSnapshotReady = true;
+        this.indexSearchSoon();
     },
     recordNavigationChanges(beforeTabs) {
         if (!this.syncHistory) return;

@@ -243,35 +243,82 @@ body.sidebar-resizing .middle-viewport-container {
   padding: 8px 0;
 }
 
-/* System Logs Inside Chat */
+/* Assistant working trace inside chat */
 .ai-activity-stream {
-  padding: var(--spacing-md);
-  background: var(--color-sidebar-bg);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--border-radius-md);
-  font-family: var(--font-code);
-  font-size: var(--font-size-xxs);
+  padding: 2px 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  margin: var(--spacing-xs) 0;
-  width: 80%;
+  gap: 6px;
+  margin: 2px 0 12px;
+  width: 92%;
   box-sizing: border-box;
+}
+
+.activity-stream-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text-inactive);
+}
+
+.activity-kicker {
+  color: var(--color-text-active);
+  font-weight: var(--font-weight-semibold);
+  font-size: 12px;
+}
+
+.activity-summary {
+  font-size: 11px;
+  color: var(--color-text-inactive);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-left: 2px;
 }
 
 .activity-item {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: 8px;
   align-items: center;
-  line-height: 1.4;
+  line-height: 1.35;
+  color: var(--color-text-inactive);
+}
+
+.activity-node {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 14px;
+}
+
+.activity-node i {
+  font-size: 12px;
+}
+
+.activity-copy {
+  min-width: 0;
+  color: inherit;
 }
 
 .activity-item.success { color: #188038; }
-.activity-item.info { color: #1A73E8; }
-.activity-item.warning { color: #FFBA00; }
+.activity-item.running { color: #1A73E8; }
+.activity-item.warning { color: #C58A00; }
 
 .dark-theme .activity-item.success { color: #81C784; }
-.dark-theme .activity-item.info { color: #64B5F6; }
+.dark-theme .activity-item.running { color: #64B5F6; }
 .dark-theme .activity-item.warning { color: #FFD54F; }
 
 /* Interactive Input bar */

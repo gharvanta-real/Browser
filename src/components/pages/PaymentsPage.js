@@ -1,4 +1,5 @@
 import { BaseComponent } from '../BaseComponent.js';
+import { showWindowsHello } from '../WindowsHelloModal.js';
 
 export class PaymentsPage extends BaseComponent {
     constructor() {
@@ -57,7 +58,12 @@ export class PaymentsPage extends BaseComponent {
                     <div style="max-width: 720px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: var(--spacing-md);">
                         
                         <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Payment Methods</h2>
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <button id="payments-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                    <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                                </button>
+                                <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Payment Methods</h2>
+                            </div>
                             <button id="btn-add-card-trigger" style="background: var(--color-input-focus-border); color: #FFFFFF; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); padding: var(--spacing-sm) var(--spacing-lg); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: var(--spacing-xs);">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 Add card
@@ -133,6 +139,10 @@ export class PaymentsPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#payments-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         // Toggle Form
         const formTrigger = this.querySelector('#btn-add-card-trigger');
         if (formTrigger) {
@@ -151,7 +161,7 @@ export class PaymentsPage extends BaseComponent {
         // Save card event
         const formSave = this.querySelector('#btn-add-card-save');
         if (formSave) {
-            formSave.addEventListener('click', () => {
+            formSave.addEventListener('click', async () => {
                 const type = this.querySelector('#new-card-type').value;
                 const num = this.querySelector('#new-card-number').value.trim();
                 const holder = this.querySelector('#new-card-holder').value.trim();
@@ -161,6 +171,10 @@ export class PaymentsPage extends BaseComponent {
                     alert('Please complete all card details.');
                     return;
                 }
+
+                // Biometric security check
+                const verified = await showWindowsHello("register this credit card");
+                if (!verified) return;
 
                 // Format number to hide details
                 const formattedNum = '•••• •••• •••• ' + num.slice(-4);
@@ -191,7 +205,11 @@ export class PaymentsPage extends BaseComponent {
 
         // Delete card event
         this.querySelectorAll('.delete-card-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
+                // Biometric security check
+                const verified = await showWindowsHello("delete this credit card");
+                if (!verified) return;
+
                 const id = parseInt(btn.getAttribute('data-id'));
                 const cards = this.state.cards.filter(c => c.id !== id);
                 this.setState({ cards });

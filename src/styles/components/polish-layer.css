@@ -60,6 +60,15 @@
 }
 
 /* --- Toggle Switch refinement --- */
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .switch-toggle input[type="checkbox"] {
   opacity: 0;
   width: 0;
@@ -68,7 +77,18 @@
 }
 
 .switch-toggle .slider-round {
-  transition: background-color 0.25s ease;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #E2E8F0; /* Premium light grey */
+  border-radius: 34px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark-theme .switch-toggle .slider-round {
+  background-color: #4A5568; /* Premium dark grey track */
 }
 
 .switch-toggle input:checked + .slider-round {
@@ -84,12 +104,20 @@
   bottom: 3px;
   background-color: white;
   border-radius: 50%;
-  transition: transform 0.25s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 .switch-toggle input:checked + .slider-round::before {
   transform: translateX(14px);
+}
+
+.switch-toggle:hover .slider-round {
+  filter: brightness(0.95);
+}
+
+.dark-theme .switch-toggle:hover .slider-round {
+  filter: brightness(1.1);
 }
 
 /* --- Bookmark bar item refinements --- */
@@ -272,6 +300,17 @@ input[type="range"].range-slider::-webkit-slider-thumb:hover {
 /* Smooth animate-fade-in for popovers/modals */
 .animate-fade-in {
   animation: fadeIn 0.15s ease forwards;
+}
+
+/* --- Popover action row hover styles --- */
+.menu-action-row:hover,
+.profile-action-row:hover {
+  background-color: var(--color-hover-bg) !important;
+}
+
+.zoom-btn:hover,
+.fullscreen-btn:hover {
+  background-color: var(--color-hover-bg) !important;
 }
 
 

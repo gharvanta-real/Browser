@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, webContents, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, webContents, dialog, session, nativeTheme } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net');
@@ -10,6 +10,7 @@ const BACKEND_EXE = app.isPackaged
 let backendProcess = null;
 const activeDownloads = new Map();
 const permissionDecisions = new Map();
+const debuggerAttached = new Set();
 const trackerHosts = [
   'doubleclick.net',
   'googlesyndication.com',
@@ -49,6 +50,14 @@ function isTrackerUrl(src) {
   }
 }
 
+function isDangerousDownload(filename) {
+  const ext = path.extname(String(filename || '')).toLowerCase();
+  return new Set([
+    '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.ps1', '.vbs',
+    '.js', '.jar', '.reg', '.dll', '.hta', '.wsf', '.lnk'
+  ]).has(ext);
+}
+
 function originFromUrl(src) {
   try {
     const parsed = new URL(src);
@@ -71,6 +80,115 @@ function permissionLabel(permission) {
     clipboardRead: 'clipboard read',
     clipboardSanitizedWrite: 'clipboard write'
   }[permission] || permission;
+}
+
+function axValue(entry) {
+  if (!entry) return '';
+  if (typeof entry.value === 'string' || typeof entry.value === 'number' || typeof entry.value === 'boolean') {
+    return String(entry.value);
+  }
+  return '';
+}
+
+function axProperty(node, name) {
+  const property = (node.properties || []).find(item => item.name === name);
+  return axValue(property?.value);
+}
+
+function roleValue(node) {
+  return axValue(node.role);
+}
+
+function axName(node) {
+  return axValue(node.name) || axProperty(node, 'placeholder') || axValue(node.value);
+}
+
+function isUsefulAxNode(node) {
+  if (!node || node.ignored) return false;
+  const role = roleValue(node).toLowerCase();
+  const name = axName(node);
+  return Boolean(node.backendDOMNodeId) && [
+    'button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio',
+    'switch', 'menuitem', 'tab', 'slider', 'spinbutton', 'listbox', 'option'
+  ].includes(role) && (name || role === 'textbox' || role === 'searchbox');
+}
+
+function boundsFromBoxModel(model) {
+  const quad = model?.content || model?.border;
+  if (!Array.isArray(quad) || quad.length < 8) return null;
+  const xs = [quad[0], quad[2], quad[4], quad[6]];
+  const ys = [quad[1], quad[3], quad[5], quad[7]];
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  return {
+    x: Math.round(left + (right - left) / 2),
+    y: Math.round(top + (bottom - top) / 2),
+    width: Math.round(right - left),
+    height: Math.round(bottom - top)
+  };
+}
+
+async function sendGuestDebuggerCommand(guest, method, params = {}) {
+  const id = guest.id;
+  if (!guest.debugger.isAttached()) {
+    guest.debugger.attach('1.3');
+  }
+  if (!debuggerAttached.has(id)) {
+    debuggerAttached.add(id);
+    guest.debugger.once('detach', () => debuggerAttached.delete(id));
+    guest.once('destroyed', () => debuggerAttached.delete(id));
+  }
+  return guest.debugger.sendCommand(method, params);
+}
+
+async function getGuestAxSnapshot(webContentsId) {
+  const guest = webContents.fromId(Number(webContentsId));
+  if (!guest || guest.isDestroyed() || !isAllowedGuestUrl(guest.getURL())) {
+    return { ok: false, nodes: [], error: 'Guest page is unavailable or blocked.' };
+  }
+
+  await sendGuestDebuggerCommand(guest, 'DOM.enable');
+  await sendGuestDebuggerCommand(guest, 'Accessibility.enable');
+  const tree = await sendGuestDebuggerCommand(guest, 'Accessibility.getFullAXTree');
+  const rawNodes = Array.isArray(tree?.nodes) ? tree.nodes : [];
+  const useful = rawNodes.filter(isUsefulAxNode).slice(0, 180);
+  const nodes = [];
+
+  for (const node of useful) {
+    let bounds = null;
+    try {
+      const box = await sendGuestDebuggerCommand(guest, 'DOM.getBoxModel', {
+        backendNodeId: node.backendDOMNodeId
+      });
+      bounds = boundsFromBoxModel(box?.model);
+    } catch {}
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) continue;
+    const role = roleValue(node);
+    const label = axName(node) || role;
+    nodes.push({
+      id: String(node.nodeId || node.backendDOMNodeId),
+      backendDOMNodeId: node.backendDOMNodeId,
+      role,
+      label: String(label || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+      valuePreview: /password|pin|otp|cvv|card/i.test(`${role} ${label}`) ? '' : axValue(node.value).slice(0, 80),
+      disabled: axProperty(node, 'disabled') === 'true',
+      required: axProperty(node, 'required') === 'true',
+      focused: axProperty(node, 'focused') === 'true',
+      source: 'chromium_ax_tree',
+      ...bounds
+    });
+  }
+
+  return {
+    ok: true,
+    url: guest.getURL(),
+    title: guest.getTitle(),
+    nodeCount: rawNodes.length,
+    interactiveCount: nodes.length,
+    nodes
+  };
 }
 
 function isPortOpen(port, host = '127.0.0.1') {
@@ -211,57 +329,84 @@ async function createWindow() {
     callback(allowed);
   });
 
-  win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-    const blocked = isTrackerUrl(details.url);
-    if (blocked) {
-      win.webContents.send('aero:tracker-blocked', {
-        url: details.url,
-        resourceType: details.resourceType,
-        timestamp: Date.now()
-      });
-    }
-    callback({ cancel: blocked });
-  });
+  const setupAdBlocker = (sess) => {
+    sess.webRequest.onBeforeRequest((details, callback) => {
+      const blocked = isTrackerUrl(details.url);
+      if (blocked) {
+        win.webContents.send('aero:tracker-blocked', {
+          url: details.url,
+          resourceType: details.resourceType,
+          timestamp: Date.now()
+        });
+      }
+      callback({ cancel: blocked });
+    });
+  };
 
-  win.webContents.session.on('will-download', (_event, item) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const startedAt = Date.now();
-    let lastBytes = 0;
-    let lastTick = startedAt;
-    activeDownloads.set(id, item);
+  const setupDownloadHandler = (sess) => {
+    sess.on('will-download', (_event, item) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const startedAt = Date.now();
+      let lastBytes = 0;
+      let lastTick = startedAt;
+      activeDownloads.set(id, item);
 
-    const payload = (type, state) => {
-      const now = Date.now();
-      const receivedBytes = item.getReceivedBytes();
-      const deltaBytes = Math.max(0, receivedBytes - lastBytes);
-      const deltaMs = Math.max(1, now - lastTick);
-      const speed = Math.round(deltaBytes / (deltaMs / 1000));
-      lastBytes = receivedBytes;
-      lastTick = now;
+      if (isDangerousDownload(item.getFilename())) {
+        dialog.showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Cancel download', 'Keep file'],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Aero download warning',
+          message: `${item.getFilename()} can run code on this PC.`,
+          detail: 'Only keep executable or script files when you trust the site and expected this download.',
+          noLink: true,
+          normalizeAccessKeys: true
+        }).then(result => {
+          if (result.response === 0) item.cancel();
+        }).catch(() => {});
+      }
 
-      return {
-        id,
-        type,
-        state,
-        name: item.getFilename(),
-        url: item.getURL(),
-        savePath: item.getSavePath(),
-        totalBytes: item.getTotalBytes(),
-        downloadedBytes: receivedBytes,
-        speed,
-        startedAt
+      const payload = (type, state) => {
+        const now = Date.now();
+        const receivedBytes = item.getReceivedBytes();
+        const deltaBytes = Math.max(0, receivedBytes - lastBytes);
+        const deltaMs = Math.max(1, now - lastTick);
+        const speed = Math.round(deltaBytes / (deltaMs / 1000));
+        lastBytes = receivedBytes;
+        lastTick = now;
+
+        return {
+          id,
+          type,
+          state,
+          name: item.getFilename(),
+          url: item.getURL(),
+          savePath: item.getSavePath(),
+          totalBytes: item.getTotalBytes(),
+          downloadedBytes: receivedBytes,
+          speed,
+          startedAt
+        };
       };
-    };
 
-    win.webContents.send('aero:download', payload('started', item.getState()));
-    item.on('updated', (_event, state) => {
-      win.webContents.send('aero:download', payload('updated', state));
+      win.webContents.send('aero:download', payload('started', item.getState()));
+      item.on('updated', (_event, state) => {
+        win.webContents.send('aero:download', payload('updated', state));
+      });
+      item.once('done', (_event, state) => {
+        win.webContents.send('aero:download', payload('done', state));
+        activeDownloads.delete(id);
+      });
     });
-    item.once('done', (_event, state) => {
-      win.webContents.send('aero:download', payload('done', state));
-      activeDownloads.delete(id);
-    });
-  });
+  };
+
+  // Setup handlers on both the main window session and guest webview session
+  const aeroSession = session.fromPartition('persist:aero-default');
+  setupAdBlocker(win.webContents.session);
+  setupAdBlocker(aeroSession);
+  setupDownloadHandler(win.webContents.session);
+  setupDownloadHandler(aeroSession);
 
   await win.loadFile(path.join(ROOT, 'index.html'));
 }
@@ -292,6 +437,10 @@ app.on('before-quit', () => {
   if (backendProcess && !backendProcess.killed) {
     backendProcess.kill();
   }
+});
+
+app.on('web-contents-created', (event, contents) => {
+  contents.setMaxListeners(100);
 });
 
 ipcMain.handle('aero:window:minimize', (event) => {
@@ -337,6 +486,14 @@ ipcMain.handle('aero:guest:load-url', async (_event, webContentsId, url) => {
   return true;
 });
 
+ipcMain.handle('aero:guest:ax-tree', async (_event, webContentsId) => {
+  try {
+    return await getGuestAxSnapshot(webContentsId);
+  } catch (error) {
+    return { ok: false, nodes: [], error: error?.message || String(error) };
+  }
+});
+
 ipcMain.handle('aero:download:pause', (_event, id) => {
   const item = activeDownloads.get(String(id));
   if (!item || item.isPaused()) return false;
@@ -371,6 +528,11 @@ ipcMain.handle('aero:download:open', async (_event, filePath) => {
   return result || true;
 });
 
+ipcMain.handle('aero:permissions:clear', () => {
+  permissionDecisions.clear();
+  return true;
+});
+
 ipcMain.handle('aero:confirm-sensitive-action', async (event, payload = {}) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showMessageBox(win, {
@@ -385,4 +547,15 @@ ipcMain.handle('aero:confirm-sensitive-action', async (event, payload = {}) => {
     normalizeAccessKeys: true
   });
   return result.response === 1;
+});
+
+ipcMain.handle('aero:set-theme', (event, theme) => {
+  if (theme === 'dark') {
+    nativeTheme.themeSource = 'dark';
+  } else if (theme === 'light') {
+    nativeTheme.themeSource = 'light';
+  } else {
+    nativeTheme.themeSource = 'system';
+  }
+  return true;
 });

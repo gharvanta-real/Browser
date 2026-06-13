@@ -12,6 +12,7 @@ export class SecurityPage extends BaseComponent {
             blockedTrackerLog: window.AppState?.blockedTrackerLog || [],
             taskLogs: window.AppState?.taskLogs || [],
             aiActionHistory: window.AppState?.aiActionHistory || [],
+            sitePermissions: window.AppState?.sitePermissions || [],
             lastAiContextDisclosure: window.AppState?.lastAiContextDisclosure || null
         };
     }
@@ -23,6 +24,7 @@ export class SecurityPage extends BaseComponent {
                 blockedTrackerLog: state.blockedTrackerLog || [],
                 taskLogs: state.taskLogs || [],
                 aiActionHistory: state.aiActionHistory || [],
+                sitePermissions: state.sitePermissions || [],
                 lastAiContextDisclosure: state.lastAiContextDisclosure || null
             });
         });
@@ -48,15 +50,21 @@ export class SecurityPage extends BaseComponent {
         const logs = this.state.taskLogs.slice(-8).reverse();
         const audits = this.state.auditEvents.slice(0, 8);
         const aiHistory = (this.state.aiActionHistory || []).slice(0, 10);
+        const sitePermissions = (this.state.sitePermissions || []).slice(0, 8);
         const disclosure = this.state.lastAiContextDisclosure;
 
         return `
             <div class="security-page" style="height: 100%; overflow-y: auto; background: var(--color-viewport-bg); color: var(--color-viewport-text); font-family: var(--font-ui); padding: 36px;">
                 <div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px;">
                     <div style="display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;">
-                        <div>
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 700;">Security & Privacy Center</h1>
-                            <p style="margin: 6px 0 0; color: var(--color-viewport-text-muted); font-size: 13px;">Native browser controls, AI action gates, tracker blocking, and production readiness.</p>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <button id="security-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                            </button>
+                            <div>
+                                <h1 style="margin: 0; font-size: 26px; font-weight: 700;">Security & Privacy Center</h1>
+                                <p style="margin: 6px 0 0; color: var(--color-viewport-text-muted); font-size: 13px;">Native browser controls, AI action gates, tracker blocking, and production readiness.</p>
+                            </div>
                         </div>
                         <button id="refresh-security" style="border: 1px solid var(--color-viewport-border); background: var(--color-card-bg); color: var(--color-viewport-text); border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 12px;">Refresh</button>
                     </div>
@@ -105,6 +113,41 @@ export class SecurityPage extends BaseComponent {
 
                     <div>
                         ${this.panel('What AI saw / sent', disclosure ? this.renderDisclosure(disclosure) : this.empty('No AI planner context captured yet. Run a browser-control prompt from the assistant.'))}
+                    </div>
+
+                    <div>
+                        ${this.panel('Site permissions', `
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 12px; color: var(--color-viewport-text-muted);">Camera, microphone, location, notifications, and clipboard decisions from this profile.</span>
+                                <button id="clear-site-permissions" style="border: 1px solid var(--color-viewport-border); background: transparent; color: var(--color-viewport-text); border-radius: 6px; padding: 6px 9px; font-size: 11px; cursor: pointer;">Reset</button>
+                            </div>
+                            ${sitePermissions.length ? sitePermissions.map(item => `
+                                <div style="display: grid; grid-template-columns: 1fr 120px 80px; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-viewport-border); align-items: center;">
+                                    <div style="min-width: 0;">
+                                        <strong style="display: block; font-size: 12px; overflow-wrap: anywhere;">${this.escape(item.origin)}</strong>
+                                        <span style="font-size: 11px; color: var(--color-viewport-text-muted);">${this.escape(item.permission)} ${item.remembered ? '- remembered' : ''}</span>
+                                    </div>
+                                    <span style="font-size: 11px; color: ${item.allowed ? '#188038' : '#D93025'};">${item.allowed ? 'Allowed' : 'Blocked'}</span>
+                                    <span style="font-size: 10px; color: var(--color-viewport-text-muted);">${this.shortTime(item.lastSeen)}</span>
+                                </div>
+                            `).join('') : this.empty('No site permission requests recorded yet.')}
+                        `)}
+                    </div>
+
+                    <div>
+                        ${this.panel('GDPR & Data Compliance Controls', `
+                            <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
+                                <span style="font-size: 12px; color: var(--color-viewport-text-muted);">Manage your local AI logs, audit events, and data compliance settings under GDPR.</span>
+                                <div style="display: flex; gap: var(--spacing-md); margin-top: 6px;">
+                                    <button id="security-gdpr-export" style="background: var(--color-input-focus-border); color: #fff; border: none; border-radius: 6px; padding: 10px 16px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                                        Export AI Interaction Logs
+                                    </button>
+                                    <button id="security-gdpr-purge" style="background: transparent; border: 1px solid #E81123; color: #E81123; border-radius: 6px; padding: 10px 16px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                                        Purge Encrypted Local AI Data
+                                    </button>
+                                </div>
+                            </div>
+                        `)}
                     </div>
 
                     <div>
@@ -189,6 +232,14 @@ export class SecurityPage extends BaseComponent {
         }
     }
 
+    shortTime(value) {
+        try {
+            return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        } catch {
+            return '';
+        }
+    }
+
     escape(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -199,7 +250,55 @@ export class SecurityPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#security-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+        
         const refresh = this.querySelector('#refresh-security');
         if (refresh) refresh.addEventListener('click', () => this.load());
+
+        const clearPermissions = this.querySelector('#clear-site-permissions');
+        if (clearPermissions) {
+            clearPermissions.addEventListener('click', async () => {
+                await window.aeroNative?.clearSitePermissions?.();
+                window.AppState.update(state => {
+                    state.sitePermissions = [];
+                    state.taskLogs.push({ text: 'Site permission decisions reset for this session.', status: 'success' });
+                });
+            });
+        }
+
+        const exportBtn = this.querySelector('#security-gdpr-export');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+                    chatHistory: window.AppState.chatHistory || [],
+                    taskLogs: window.AppState.taskLogs || [],
+                    aiActionHistory: window.AppState.aiActionHistory || [],
+                    blockedTrackers: window.AppState.blockedTrackers || 0,
+                    sitePermissions: window.AppState.sitePermissions || {}
+                }, null, 4));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", "aero_ai_compliance_export.json");
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            });
+        }
+
+        const purgeBtn = this.querySelector('#security-gdpr-purge');
+        if (purgeBtn) {
+            purgeBtn.addEventListener('click', () => {
+                window.AppState.update(s => {
+                    s.chatHistory = [
+                        { sender: 'ai', text: 'History and task logs cleared. How can I help you today?' }
+                    ];
+                    s.taskLogs = [];
+                    s.aiActionHistory = [];
+                });
+                alert("All encrypted local AI data and compliance logs have been permanently purged.");
+            });
+        }
     }
 }

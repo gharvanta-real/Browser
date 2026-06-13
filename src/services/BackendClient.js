@@ -80,6 +80,13 @@ export class BackendClient {
         });
     }
 
+    static async completeAi(payload) {
+        return this.request('/v1/ai/complete', {
+            method: 'POST',
+            body: payload
+        });
+    }
+
     static async getProfile() {
         return this.request('/v1/ai/profile', { fallback: this.localProfile() });
     }
@@ -115,6 +122,26 @@ export class BackendClient {
         return this.request('/v1/automation/compile-cdp', {
             method: 'POST',
             body: { command }
+        });
+    }
+
+    static async indexSearchDocuments(documents) {
+        return this.request('/v1/search/index', {
+            method: 'POST',
+            body: { documents },
+            fallback: { indexed: 0, total_documents: 0 }
+        });
+    }
+
+    static async search(query, options = {}) {
+        return this.request('/v1/search/query', {
+            method: 'POST',
+            body: {
+                query,
+                limit: options.limit || 20,
+                kinds: options.kinds || null
+            },
+            fallback: { request_id: 'local-fallback', query, hits: [] }
         });
     }
 
@@ -164,6 +191,20 @@ export class BackendClient {
         });
     }
 
+    static async getAutofillProfile() {
+        return this.request('/v1/autofill/profile', {
+            fallback: { profile: window.AppState?.autofillProfile || null }
+        });
+    }
+
+    static async saveAutofillProfile(profile) {
+        return this.request('/v1/autofill/profile', {
+            method: 'POST',
+            body: profile,
+            fallback: { profile }
+        });
+    }
+
     static async request(path, options = {}) {
         const { fallback, method = 'GET', body } = options;
         try {
@@ -173,7 +214,12 @@ export class BackendClient {
                 body: body ? JSON.stringify(body) : undefined
             });
             if (!response.ok) {
-                throw new Error(`Backend ${response.status}`);
+                let message = `Backend ${response.status}`;
+                try {
+                    const payload = await response.json();
+                    message = payload.error || message;
+                } catch {}
+                throw new Error(message);
             }
             return response.json();
         } catch (error) {

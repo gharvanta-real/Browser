@@ -142,6 +142,66 @@ fn dev_reveal(secret: &ProtectedSecret) -> Result<Vec<u8>, CryptoError> {
     })
 }
 
+#[cfg(windows)]
+pub fn verify_user_consent(message: &str) -> bool {
+    use std::ptr;
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::Foundation::LocalFree;
+    use windows_sys::Win32::Security::Credentials::{
+        CREDUI_INFOW, CREDUIWIN_GENERIC, CredUIPromptForWindowsCredentialsW,
+    };
+
+    let mut message_u16: Vec<u16> = message.encode_utf16().collect();
+    message_u16.push(0);
+
+    let mut title_u16: Vec<u16> = "Aero Browser Security".encode_utf16().collect();
+    title_u16.push(0);
+
+    let mut ui_info = CREDUI_INFOW {
+        cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
+        hwndParent: 0 as HWND,
+        pszMessageText: message_u16.as_ptr(),
+        pszCaptionText: title_u16.as_ptr(),
+        hbmBanner: 0 as _,
+    };
+
+    let mut auth_package: u32 = 0;
+    let mut out_buffer: *mut ::core::ffi::c_void = ptr::null_mut();
+    let mut out_buffer_size: u32 = 0;
+    let mut save: i32 = 0;
+
+    let status = unsafe {
+        CredUIPromptForWindowsCredentialsW(
+            &mut ui_info,
+            0,
+            &mut auth_package,
+            ptr::null(),
+            0,
+            &mut out_buffer,
+            &mut out_buffer_size,
+            &mut save,
+            CREDUIWIN_GENERIC,
+        )
+    };
+
+    if status == 0 {
+        if !out_buffer.is_null() {
+            unsafe {
+                LocalFree(out_buffer as _);
+            }
+        }
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(not(windows))]
+pub fn verify_user_consent(message: &str) -> bool {
+    println!("Mock User Consent Requested: {}", message);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

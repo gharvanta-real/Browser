@@ -6,7 +6,7 @@ pub use privacy::{
     AiDataPolicy, CloudAiDecision, DataClass, DataHandlingDecision, DataUse, PrivacyPolicy,
 };
 pub use readiness::{
-    BrowserFeatureArea, FeatureReadiness, FeatureReadinessReport, FeatureStatus,
+    BrowserFeatureArea, FeatureReadiness, FeatureReadinessReport, FeatureStatus, QaStatus,
     production_readiness_report,
 };
 pub use safety::{

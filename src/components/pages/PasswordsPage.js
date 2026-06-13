@@ -1,5 +1,6 @@
 import { BaseComponent } from '../BaseComponent.js';
 import { BackendClient } from '../../services/BackendClient.js';
+import { showWindowsHello } from '../WindowsHelloModal.js';
 
 export class PasswordsPage extends BaseComponent {
     constructor() {
@@ -105,9 +106,14 @@ export class PasswordsPage extends BaseComponent {
                 <div style="flex: 1; padding: 40px var(--spacing-xl); overflow-y: auto; display: flex; flex-direction: column;">
                     <div style="max-width: 760px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: var(--spacing-md);">
                         <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <div>
-                                <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Password Manager</h2>
-                                <div style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted); margin-top: 4px;">Local encrypted vault. Secrets reveal only on demand.</div>
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <button id="passwords-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                    <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                                </button>
+                                <div>
+                                    <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Password Manager</h2>
+                                    <div style="font-size: var(--font-size-xs); color: var(--color-viewport-text-muted); margin-top: 4px;">Local encrypted vault. Secrets reveal only on demand.</div>
+                                </div>
                             </div>
                             <button id="btn-add-pass-trigger" style="background: var(--color-input-focus-border); color: #FFFFFF; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); padding: var(--spacing-sm) var(--spacing-lg); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: var(--spacing-xs);">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -164,6 +170,10 @@ export class PasswordsPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#passwords-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         this.querySelector('#pass-search')?.addEventListener('input', event => {
             this.setState({ searchQuery: event.target.value });
             const searchInput = this.querySelector('#pass-search');
@@ -235,6 +245,14 @@ export class PasswordsPage extends BaseComponent {
             this.setState({ revealed });
             return;
         }
+
+        // Biometric security gate
+        const verified = await showWindowsHello("reveal this password");
+        if (!verified) {
+            this.setState({ error: 'Verification failed: Biometric check rejected.', status: '' });
+            return;
+        }
+
         try {
             const response = await BackendClient.revealPassword(id);
             this.setState({
@@ -249,6 +267,14 @@ export class PasswordsPage extends BaseComponent {
 
     async copyPassword(id) {
         if (!id) return;
+
+        // Biometric security gate
+        const verified = await showWindowsHello("copy this password to clipboard");
+        if (!verified) {
+            this.setState({ error: 'Verification failed: Biometric check rejected.', status: '' });
+            return;
+        }
+
         try {
             const response = this.state.revealed[id]
                 ? { password: this.state.revealed[id] }
@@ -262,6 +288,14 @@ export class PasswordsPage extends BaseComponent {
 
     async deletePassword(id) {
         if (!id) return;
+
+        // Biometric security gate
+        const verified = await showWindowsHello("delete this saved credential");
+        if (!verified) {
+            this.setState({ error: 'Verification failed: Biometric check rejected.', status: '' });
+            return;
+        }
+
         try {
             await BackendClient.deletePassword(id);
             const revealed = { ...this.state.revealed };

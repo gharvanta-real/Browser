@@ -73,7 +73,34 @@ impl BrowserStorage {
     }
 
     pub fn upsert_search_document(&self, document: &SearchDocument) -> StorageResult<()> {
-        let payload = serde_json::to_string(document)?;
+        let is_sensitive = matches!(
+            document.kind,
+            search_core::DocumentKind::Bookmark
+                | search_core::DocumentKind::History
+                | search_core::DocumentKind::ReadingList
+        );
+
+        let (title_to_save, url_to_save, payload_to_save) = if is_sensitive {
+            let protected_title = protect_secret(&document.title)?;
+            let protected_url = match &document.url {
+                Some(url) => Some(serde_json::to_string(&protect_secret(url)?)?),
+                None => None,
+            };
+            let plain_payload = serde_json::to_string(document)?;
+            let protected_payload = protect_secret(&plain_payload)?;
+            (
+                serde_json::to_string(&protected_title)?,
+                protected_url,
+                serde_json::to_string(&protected_payload)?,
+            )
+        } else {
+            (
+                document.title.clone(),
+                document.url.clone(),
+                serde_json::to_string(document)?,
+            )
+        };
+
         self.conn.execute(
             "INSERT INTO search_documents (id, kind, title, url, source, updated_at, payload_json)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -87,11 +114,11 @@ impl BrowserStorage {
             params![
                 &document.id,
                 format!("{:?}", document.kind),
-                &document.title,
-                document.url.as_deref(),
+                &title_to_save,
+                url_to_save.as_deref(),
                 &document.source,
                 document.updated_at.to_rfc3339(),
-                payload
+                payload_to_save
             ],
         )?;
         Ok(())
@@ -100,11 +127,25 @@ impl BrowserStorage {
     pub fn all_search_documents(&self) -> StorageResult<Vec<SearchDocument>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT payload_json FROM search_documents ORDER BY updated_at DESC")?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            .prepare("SELECT kind, payload_json FROM search_documents ORDER BY updated_at DESC")?;
+        let rows = stmt.query_map([], |row| {
+            let kind_str: String = row.get(0)?;
+            let payload_json: String = row.get(1)?;
+            Ok((kind_str, payload_json))
+        })?;
         let mut documents = Vec::new();
         for row in rows {
-            documents.push(serde_json::from_str(&row?)?);
+            let (kind_str, payload_json) = row?;
+            let is_sensitive =
+                kind_str == "Bookmark" || kind_str == "History" || kind_str == "ReadingList";
+            let doc: SearchDocument = if is_sensitive {
+                let protected: ProtectedSecret = serde_json::from_str(&payload_json)?;
+                let plain_json = reveal_secret(&protected)?;
+                serde_json::from_str(&plain_json)?
+            } else {
+                serde_json::from_str(&payload_json)?
+            };
+            documents.push(doc);
         }
         Ok(documents)
     }
@@ -396,6 +437,38 @@ impl BrowserStorage {
             > 0)
     }
 
+    pub fn load_autofill_profile(&self) -> StorageResult<Option<AutofillProfile>> {
+        let protected_json = self.conn.query_row(
+            "SELECT protected_json FROM autofill_profile WHERE id = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        let protected_json = match protected_json {
+            Ok(json) => json,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let protected: ProtectedSecret = serde_json::from_str(&protected_json)?;
+        let json = reveal_secret(&protected)?;
+        Ok(Some(serde_json::from_str(&json)?))
+    }
+
+    pub fn save_autofill_profile(
+        &self,
+        profile: &AutofillProfile,
+    ) -> StorageResult<AutofillProfile> {
+        let json = serde_json::to_string(profile)?;
+        let protected = protect_secret(&json)?;
+        let protected_json = serde_json::to_string(&protected)?;
+        self.conn.execute(
+            "INSERT INTO autofill_profile (id, protected_json, updated_at)
+             VALUES (1, ?1, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET protected_json = excluded.protected_json, updated_at = CURRENT_TIMESTAMP",
+            params![protected_json],
+        )?;
+        Ok(profile.clone())
+    }
+
     fn existing_api_key_json(&self, provider_key: &str) -> StorageResult<Option<String>> {
         let result = self.conn.query_row(
             "SELECT api_key_json FROM ai_provider_settings WHERE provider = ?1",
@@ -490,6 +563,12 @@ impl BrowserStorage {
             CREATE INDEX IF NOT EXISTS idx_password_entries_origin
                 ON password_entries(origin);
 
+            CREATE TABLE IF NOT EXISTS autofill_profile (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                protected_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
             ",
         )?;
@@ -511,6 +590,101 @@ impl BrowserStorage {
         }
         self.conn.execute(alter_sql, [])?;
         Ok(())
+    }
+
+    pub fn verify_encryption_gate(&self) -> bool {
+        let doc = SearchDocument {
+            id: "qa-gate-test-bookmark".to_string(),
+            kind: search_core::DocumentKind::Bookmark,
+            title: "QA Gate Secret".to_string(),
+            url: Some("https://qa-gate.internal".to_string()),
+            body: "Sensitive QA".to_string(),
+            tags: vec![],
+            source: "qa".to_string(),
+            updated_at: Utc::now(),
+        };
+        if self.upsert_search_document(&doc).is_err() {
+            return false;
+        }
+        let raw_payload: Result<String, _> = self.conn.query_row(
+            "SELECT payload_json FROM search_documents WHERE id = 'qa-gate-test-bookmark'",
+            [],
+            |row| row.get(0),
+        );
+        let Ok(payload_json) = raw_payload else {
+            let _ = self.conn.execute(
+                "DELETE FROM search_documents WHERE id = 'qa-gate-test-bookmark'",
+                [],
+            );
+            return false;
+        };
+        let is_plain = serde_json::from_str::<SearchDocument>(&payload_json).is_ok();
+        let is_protected = serde_json::from_str::<ProtectedSecret>(&payload_json).is_ok();
+
+        let _ = self.conn.execute(
+            "DELETE FROM search_documents WHERE id = 'qa-gate-test-bookmark'",
+            [],
+        );
+
+        !is_plain && is_protected
+    }
+
+    pub fn verify_password_encryption_gate(&self) -> bool {
+        let req = PasswordEntrySaveRequest {
+            id: "qa-gate-test-password".to_string(),
+            site: "QA Site".to_string(),
+            origin: "https://qa-password.internal".to_string(),
+            username: "qa-user".to_string(),
+            password: "qa-secret-password".to_string(),
+        };
+        if self.save_password_entry(&req).is_err() {
+            return false;
+        }
+        let raw_secret: Result<String, _> = self.conn.query_row(
+            "SELECT secret_json FROM password_entries WHERE id = 'qa-gate-test-password'",
+            [],
+            |row| row.get(0),
+        );
+        let Ok(secret_json) = raw_secret else {
+            let _ = self.conn.execute(
+                "DELETE FROM password_entries WHERE id = 'qa-gate-test-password'",
+                [],
+            );
+            return false;
+        };
+        let is_plain = secret_json.contains("qa-secret-password");
+        let is_protected =
+            secret_json.contains("protected") && secret_json.contains("ciphertext_b64");
+
+        let _ = self.conn.execute(
+            "DELETE FROM password_entries WHERE id = 'qa-gate-test-password'",
+            [],
+        );
+
+        !is_plain && is_protected
+    }
+
+    pub fn verify_snapshot_encryption_gate(&self) -> bool {
+        let test_val = serde_json::json!({"secret": "qa-snapshot-secret"});
+        if self.save_app_state_snapshot(&test_val).is_err() {
+            return false;
+        }
+        let raw_json: Result<String, _> = self.conn.query_row(
+            "SELECT protected_json FROM app_state_snapshot WHERE id = 1",
+            [],
+            |row| row.get(0),
+        );
+        let Ok(protected_json) = raw_json else {
+            return false;
+        };
+        let is_plain = protected_json.contains("qa-snapshot-secret");
+        let is_protected = protected_json.contains("ciphertext_b64");
+
+        let _ = self
+            .conn
+            .execute("DELETE FROM app_state_snapshot WHERE id = 1", []);
+
+        !is_plain && is_protected
     }
 }
 
@@ -539,6 +713,29 @@ pub struct PasswordEntrySaveRequest {
     pub origin: String,
     pub username: String,
     pub password: String,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutofillProfile {
+    #[serde(default)]
+    pub full_name: String,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub phone: String,
+    #[serde(default)]
+    pub address_line1: String,
+    #[serde(default)]
+    pub address_line2: String,
+    #[serde(default)]
+    pub city: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub zip: String,
+    #[serde(default)]
+    pub country: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -698,5 +895,35 @@ mod tests {
         );
         assert!(storage.delete_password_entry("entry-1").unwrap());
         assert!(storage.reveal_password("entry-1").unwrap().is_none());
+    }
+
+    #[test]
+    fn stores_autofill_profile_as_protected_secret() {
+        let storage = BrowserStorage::open_memory().unwrap();
+        let profile = AutofillProfile {
+            full_name: "Aero User".to_string(),
+            email: "user@example.com".to_string(),
+            phone: "+15551234567".to_string(),
+            address_line1: "1 Browser Way".to_string(),
+            address_line2: "Suite AI".to_string(),
+            city: "Seattle".to_string(),
+            state: "WA".to_string(),
+            zip: "98101".to_string(),
+            country: "United States".to_string(),
+        };
+
+        storage.save_autofill_profile(&profile).unwrap();
+        assert_eq!(storage.load_autofill_profile().unwrap(), Some(profile));
+
+        let raw_json: String = storage
+            .conn
+            .query_row(
+                "SELECT protected_json FROM autofill_profile WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!raw_json.contains("Aero User"));
+        assert!(raw_json.contains("ciphertext_b64"));
     }
 }

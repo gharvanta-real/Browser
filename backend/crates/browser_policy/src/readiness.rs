@@ -47,9 +47,18 @@ pub struct FeatureReadinessReport {
     pub items: Vec<FeatureReadiness>,
 }
 
-pub fn production_readiness_report() -> FeatureReadinessReport {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+pub struct QaStatus {
+    pub is_db_encrypted: bool,
+    pub is_db_profile_isolated: bool,
+    pub passwords_encrypted: bool,
+    pub state_snapshot_encrypted: bool,
+    pub rate_limiter_active: bool,
+}
+
+pub fn production_readiness_report(qa: &QaStatus) -> FeatureReadinessReport {
     FeatureReadinessReport {
-        summary: "Backend and Electron shell now cover core contracts plus Chromium webview hosting, session restore, native download controls, AI page snapshots, policy-gated action compilation, and renderer-to-native input dispatch. DPAPI, Windows Hello, SmartScreen, encrypted stores, extension isolation, and enterprise policy remain required for production."
+        summary: "Backend and Electron shell now cover core contracts plus Chromium webview hosting, session restore, native download controls with risky file warnings, local search indexing/query and omnibox suggestions, encrypted password/autofill profile storage, native Chromium AXTree capture for AI target resolution, AI provider setup/completion with fallback routing, AI page snapshots with prompt-injection context guard, policy-gated action compilation, action retry/verification signals, and renderer-to-native input dispatch. DPAPI-backed storage is active; Windows Hello, SmartScreen, extension isolation, and enterprise policy remain required for production."
             .to_string(),
         items: vec![
             item(
@@ -63,28 +72,36 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
                 BrowserFeatureArea::OmniboxSearch,
                 "7.2",
                 FeatureStatus::Partial,
-                "Local index and query API exist for history/bookmarks/tabs-style data.",
+                "Local index/query API exists for history, bookmarks, tabs, reading list, and downloads; frontend state syncs searchable documents to the backend, the Search page consumes backend-ranked results, and the omnibox shows backend local suggestions.",
                 &["custom engine shortcuts", "calculator/inline answers", "certificate security details", "AI intent ranking"],
             ),
             item(
                 BrowserFeatureArea::NavigationHistory,
                 "7.3",
-                FeatureStatus::Partial,
-                "History can be indexed/searchable and frontend navigation changes are captured into persisted local history.",
-                &["encrypted SQLite history store", "granular clearing", "thumbnail navigation previews", "sync conflict handling"],
+                if qa.is_db_encrypted { FeatureStatus::Partial } else { FeatureStatus::ContractOnly },
+                "History is indexable/searchable, and frontend navigation changes are captured into a DPAPI-encrypted persistent local history store.",
+                if qa.is_db_encrypted {
+                    &["granular clearing", "thumbnail navigation previews", "sync conflict handling"]
+                } else {
+                    &["encrypted SQLite history store", "granular clearing", "thumbnail navigation previews", "sync conflict handling"]
+                },
             ),
             item(
                 BrowserFeatureArea::BookmarksReadingList,
                 "7.4",
-                FeatureStatus::Partial,
-                "Bookmark and reading-list documents can be indexed.",
-                &["folder mutation APIs", "sync encryption", "AI summaries pipeline"],
+                if qa.is_db_encrypted { FeatureStatus::Partial } else { FeatureStatus::ContractOnly },
+                "Bookmark and reading-list documents are indexable/searchable and persisted in a DPAPI-encrypted local store.",
+                if qa.is_db_encrypted {
+                    &["folder mutation APIs", "sync encryption", "AI summaries pipeline"]
+                } else {
+                    &["encrypted bookmark store", "folder mutation APIs", "sync encryption", "AI summaries pipeline"]
+                },
             ),
             item(
                 BrowserFeatureArea::Downloads,
                 "7.5",
                 FeatureStatus::Partial,
-                "Electron session download events feed the downloads UI with native pause, resume, cancel, open, and show-in-folder controls.",
+                "Electron session download events feed the downloads UI with native pause, resume, cancel, open, show-in-folder controls, and native warnings before keeping executable/script file types.",
                 &["retry manager", "SmartScreen integration", "per file-type routing", "dangerous file quarantine"],
             ),
             item(
@@ -104,9 +121,13 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
             item(
                 BrowserFeatureArea::PasswordIdentity,
                 "7.8",
-                FeatureStatus::Partial,
-                "Credential records are stored through backend APIs with DPAPI/protected local secrets, and the password manager UI can save, list, reveal, copy, and delete vault entries without seeded mock passwords.",
-                &["Windows Hello integration", "passkey/WebAuthn store", "breach-check API", "autofill capture/fill pipeline"],
+                if qa.passwords_encrypted { FeatureStatus::Partial } else { FeatureStatus::ContractOnly },
+                "Credential records and autofill identity profiles are stored through backend APIs with DPAPI/protected local secrets; password manager UI can save, list, reveal, copy, and delete vault entries; address settings save to the protected backend profile; AI/user login fills can offer to save detected credentials.",
+                if qa.passwords_encrypted {
+                    &["Windows Hello integration", "passkey/WebAuthn store", "breach-check API", "multi-profile autofill records"]
+                } else {
+                    &["DPAPI credentials store", "Windows Hello integration", "passkey/WebAuthn store", "breach-check API", "multi-profile autofill records"]
+                },
             ),
             item(
                 BrowserFeatureArea::MediaPdf,
@@ -118,37 +139,45 @@ pub fn production_readiness_report() -> FeatureReadinessReport {
             item(
                 BrowserFeatureArea::SyncProfiles,
                 "7.10",
-                FeatureStatus::ContractOnly,
-                "Privacy retention and data class rules exist.",
-                &["profile-isolated stores", "encrypted blob sync", "account opt-in model"],
+                if qa.is_db_profile_isolated { FeatureStatus::Partial } else { FeatureStatus::ContractOnly },
+                "Privacy retention and data class rules exist, and SQLite storage is isolated within user profile directories.",
+                if qa.is_db_profile_isolated {
+                    &["encrypted blob sync", "account opt-in model"]
+                } else {
+                    &["profile-isolated stores", "encrypted blob sync", "account opt-in model"]
+                },
             ),
             item(
                 BrowserFeatureArea::AiPageReading,
                 "10.1, 14.2",
                 FeatureStatus::Partial,
-                "Privacy policy supports cloud/local decisions; the Electron shell captures active page title, text, headings, links, forms, and visible interactive controls; Security Center shows the last AI context disclosure with redacted command previews.",
-                &["native Chromium AXTree connector", "screenshot OCR pipeline", "prompt-injection classifier", "server-side disclosure export"],
+                "Privacy policy supports cloud/local decisions; AI provider setup, provider response checks, provider-routed completion APIs, fallback provider routing, and heuristic prompt-injection context blocking are wired; the Electron shell captures active page title, text, headings, links, forms, visible DOM controls, and native Chromium AXTree roles/names/bounds for interactive controls; Security Center shows the last AI context disclosure with redacted command previews.",
+                &["iframe/shadow-root AX coverage hardening", "screenshot OCR pipeline", "model-based prompt-injection classifier", "server-side disclosure export"],
             ),
             item(
                 BrowserFeatureArea::AiActionExecution,
                 "10.4, 13",
                 FeatureStatus::Partial,
-                "Agent actions, backend goal-to-command planning, autofill profile planning, permission tiers, audit events, CDP compilation, Electron native input/key dispatch, sequential natural-language commands, form-aware field matching, live cursor/typing visualization, settings gates, interrupt/stop control, durable local action history, replace-on-fill, and label-to-coordinate element resolution are wired for navigation/click/fill/key/scroll primitives.",
-                &["native Chromium AXTree API integration", "multi-step model planner/tool loop", "rollback/retry model", "server-side action history export"],
+                "Agent actions, backend goal-to-command planning, strict JSON model-planner fallback, autofill profile planning, permission tiers, audit events, CDP compilation, Electron native input/key dispatch, sequential natural-language commands, native AXTree-backed field matching, live cursor/typing visualization, settings gates, interrupt/stop control, durable local action history, replace-on-fill, one-shot retry on resolved target failures, action verification signals, and label-to-coordinate element resolution are wired for navigation/click/fill/key/scroll primitives.",
+                &["multi-frame AX target arbitration", "multi-step observe/act/verify model loop", "rollback model", "server-side action history export"],
             ),
             item(
                 BrowserFeatureArea::PermissionsTrust,
                 "13",
                 FeatureStatus::Partial,
-                "SafetyPolicy enforces Tier 3/4/5 confirmation rules.",
-                &["non-bypassable native modal", "Windows Hello attestation", "standing permission UI"],
+                "SafetyPolicy enforces Tier 3/4/5 confirmation rules; Electron prompts for sensitive site permissions and Security Center records/reset site permission decisions.",
+                &["Windows Hello attestation", "persistent per-site permission backend", "enterprise standing permission policy"],
             ),
             item(
                 BrowserFeatureArea::PrivacyDataHandling,
                 "14",
-                FeatureStatus::Partial,
-                "Data classes and cloud/local handling decisions are implemented; browser state snapshots, AI secrets, and password vault secrets use protected storage/DPAPI where available.",
-                &["export/delete flows", "what-was-sent inspector", "per-profile key rotation"],
+                if qa.state_snapshot_encrypted { FeatureStatus::Partial } else { FeatureStatus::ContractOnly },
+                "Data classes and cloud/local handling decisions are implemented; browser state snapshots, AI secrets, history, bookmarks, reading lists, and password vault secrets use protected storage/DPAPI.",
+                if qa.state_snapshot_encrypted {
+                    &["export/delete flows", "what-was-sent inspector", "per-profile key rotation"]
+                } else {
+                    &["encrypted state snapshot store", "export/delete flows", "what-was-sent inspector", "per-profile key rotation"]
+                },
             ),
             item(
                 BrowserFeatureArea::TelemetryReliability,

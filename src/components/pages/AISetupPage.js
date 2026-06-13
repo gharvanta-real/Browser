@@ -68,9 +68,14 @@ export class AISetupPage extends BaseComponent {
             <div class="ai-setup-page">
                 <div class="ai-setup-main">
                     <div class="ai-setup-header">
-                        <div>
-                            <h2>AI setup</h2>
-                            <p>Choose manual or assistant-led browsing, connect providers, and lock down where AI can read or act.</p>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <button id="aisetup-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                            </button>
+                            <div>
+                                <h2>AI setup</h2>
+                                <p>Choose manual or assistant-led browsing, connect providers, and lock down where AI can read or act.</p>
+                            </div>
                         </div>
                         <div class="ai-backend-pill ${backendOnline ? 'online' : 'offline'}">
                             <span></span>${backendOnline ? 'Backend connected' : 'Local fallback'}
@@ -271,6 +276,10 @@ export class AISetupPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#aisetup-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         this.querySelectorAll('[data-step], [data-next-step]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const step = parseInt(btn.getAttribute('data-step') || btn.getAttribute('data-next-step'), 10);
@@ -328,7 +337,11 @@ export class AISetupPage extends BaseComponent {
     }
 
     updateProfile(patch) {
-        this.setState({ profile: { ...this.state.profile, ...patch }, saveState: '' });
+        const next = { ...this.state.profile, ...patch };
+        if (patch.selected_provider && patch.selected_provider !== 'local') {
+            next.allow_cloud_ai = true;
+        }
+        this.setState({ profile: next, saveState: '' });
     }
 
     async saveProvider() {
@@ -350,7 +363,11 @@ export class AISetupPage extends BaseComponent {
         });
         const providers = this.state.providers.map(provider => provider.provider === saved.provider ? { ...provider, ...saved } : provider);
         const checks = await BackendClient.checkProviders();
-        this.updateProfile({ selected_provider: saved.provider, response_mode: saved.response_mode });
+        this.updateProfile({
+            selected_provider: saved.provider,
+            response_mode: saved.response_mode,
+            allow_cloud_ai: saved.provider !== 'local' ? true : this.state.profile.allow_cloud_ai
+        });
         this.setState({ providers, checks, saveState: 'Provider saved. Run response test before continuing.' });
     }
 
@@ -386,22 +403,63 @@ export class AISetupPage extends BaseComponent {
     }
 
     async saveProfile() {
-        const profile = await BackendClient.saveProfile(this.state.profile);
+        const selectedProvider = this.state.profile.selected_provider;
+        const profileToSave = {
+            ...this.state.profile,
+            allow_cloud_ai: selectedProvider !== 'local' ? true : this.state.profile.allow_cloud_ai
+        };
+        const profile = await BackendClient.saveProfile(profileToSave);
         window.AppState.update(state => {
             state.aiProvider = profile.selected_provider;
             state.aiProfile = profile;
+            state.aiAllowPageReading = profile.allow_page_reading;
+            state.aiAllowActionExecution = profile.allow_action_execution;
+            state.aiRequireConfirmation = profile.require_confirmation_for_actions;
         });
         this.setState({ profile, saveState: 'AI profile saved and applied.' });
     }
 
-    runPreview() {
+    async runPreview() {
         const prompt = this.querySelector('#ai-preview-prompt')?.value || this.state.previewPrompt;
         const provider = this.state.providers.find(item => item.provider === this.state.profile.selected_provider);
         const check = this.state.checks.find(item => item.provider === provider.provider);
-        const response = check?.ready
-            ? `Using ${provider.display_name} (${provider.model}): I can answer from the current page, then queue only safety-approved browser actions. Prompt received: "${prompt}"`
-            : `${provider.display_name} is not ready yet. Save the required setup, then run this check again.`;
-        this.setState({ previewPrompt: prompt, previewResponse: response });
+        if (!check?.ready) {
+            this.setState({
+                previewPrompt: prompt,
+                previewResponse: `${provider.display_name} is not ready yet. Save the required setup, then run this check again.`
+            });
+            return;
+        }
+        this.setState({ previewPrompt: prompt, previewResponse: 'Running real provider response...' });
+        try {
+            const profileToSave = {
+                ...this.state.profile,
+                selected_provider: provider.provider,
+                allow_cloud_ai: provider.provider !== 'local' ? true : this.state.profile.allow_cloud_ai
+            };
+            const savedProfile = await BackendClient.saveProfile(profileToSave);
+            window.AppState.update(state => {
+                state.aiProvider = savedProfile.selected_provider;
+                state.aiProfile = savedProfile;
+                state.aiAllowPageReading = savedProfile.allow_page_reading;
+                state.aiAllowActionExecution = savedProfile.allow_action_execution;
+                state.aiRequireConfirmation = savedProfile.require_confirmation_for_actions;
+            });
+            const result = await BackendClient.completeAi({
+                prompt,
+                provider: provider.provider,
+                system: 'You are Aero Browser setup verification. Reply in 2 concise sentences and confirm the provider is usable.',
+                max_output_tokens: 220
+            });
+            this.setState({
+                profile: savedProfile,
+                previewResponse: `Using ${provider.display_name} (${result.model}, ${result.response_mode}): ${result.text}`
+            });
+        } catch (error) {
+            this.setState({
+                previewResponse: `Provider response failed: ${error.message || error}`
+            });
+        }
     }
 
     renderModelLimit(selected, modelOptions) {

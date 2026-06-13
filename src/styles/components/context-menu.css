@@ -28,7 +28,7 @@
   align-items: center;
   padding: 6px 14px 6px 30px;
   position: relative;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   color: var(--color-text-active);
   cursor: pointer;
   user-select: none;

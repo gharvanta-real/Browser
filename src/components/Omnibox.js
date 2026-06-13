@@ -1,6 +1,8 @@
 import { BaseComponent } from './BaseComponent.js';
 import { renderMenuPopover, bindMenuPopoverEvents } from './MenuPopover.js';
+import { renderProfilePopover, bindProfilePopoverEvents } from './ProfilePopover.js';
 import { renderFeaturePopover, bindFeaturePopoverEvents } from './FeaturePopover.js';
+import { BackendClient } from '../services/BackendClient.js';
 
 export class Omnibox extends BaseComponent {
     constructor() {
@@ -9,8 +11,11 @@ export class Omnibox extends BaseComponent {
         this._outsideClickHandler = null;
         this.state = {
             isMenuOpen: false,
+            isProfileOpen: false,
             isFeatureDropdownOpen: false,
-            zoomLevel: 100
+            zoomLevel: 100,
+            suggestions: [],
+            suggestionQuery: ''
         };
     }
 
@@ -98,16 +103,12 @@ export class Omnibox extends BaseComponent {
                     <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--color-text-inactive);">
                         <!-- Key (passwords) -->
                         <i class="hgi-stroke hgi-key-01 url-passwords-btn" style="font-size: 13px; cursor: pointer; opacity: 0.75;" title="Passwords"></i>
-                        <!-- Sliders/Tune (site settings) -->
-                        <i class="hgi-stroke hgi-sliders-horizontal url-settings-btn" style="font-size: 13px; cursor: pointer; opacity: 0.75;" title="Site Settings"></i>
                         <!-- Shield (tracking blockers) -->
                         <i class="hgi-stroke hgi-shield-01 url-shield-btn" style="font-size: 13px; cursor: pointer; opacity: 0.75;" title="Tracking Protection"></i>
                         <!-- Star bookmark trigger -->
                         <div class="bookmark-trigger url-bookmark-btn" title="Bookmark this page" style="display: flex; align-items: center; justify-content: center; cursor: pointer;">
                             <i class="hgi-stroke hgi-star" style="font-size: 13px; opacity: 0.75; fill: ${isBookmarked ? '#FFBA00' : 'transparent'}; color: ${isBookmarked ? '#FFBA00' : 'inherit'};"></i>
                         </div>
-                        <!-- Link (Copy link) -->
-                        <i class="hgi-stroke hgi-link-01 url-copy-link-btn" style="font-size: 13px; cursor: pointer; opacity: 0.75;" title="Copy Link"></i>
                     </div>
                     ${tab.loading ? `<div class="omnibox-loading-slider"></div>` : ''}
                 </div>
@@ -135,6 +136,16 @@ export class Omnibox extends BaseComponent {
                     </div>
 
                     <div class="suggestion-section-title">Bookmarks & History</div>
+                    ${(this.state.suggestions || []).map(hit => `
+                        <div class="suggestion-item backend-suggestion" data-val="${this.escapeAttr(hit.url || hit.title)}">
+                            <span class="omnibox-icon" style="display: flex; align-items: center; justify-content: center;"><i class="hgi-stroke ${this.iconFromKind(hit.kind)}" style="font-size: 14px;"></i></span>
+                            <div class="suggestion-content">
+                                <span class="suggestion-title">${this.escapeHtml(hit.title || hit.url || '')}</span>
+                                <span class="suggestion-url">${this.escapeHtml(hit.url || hit.source || hit.kind || '')}</span>
+                            </div>
+                            <span class="search-badge search-badge-local">${this.escapeHtml(hit.kind || 'local')}</span>
+                        </div>
+                    `).join('')}
                     <div class="suggestion-item" data-val="https://github.com/browser-project/core">
                         <span class="omnibox-icon" style="display: flex; align-items: center; justify-content: center;"><i class="hgi-stroke hgi-globe" style="font-size: 14px;"></i></span>
                         <div class="suggestion-content">
@@ -151,20 +162,9 @@ export class Omnibox extends BaseComponent {
             <!-- Toolbar controls (Menu, Soundwaves, Assistant, Dropdown, Avatar) -->
             <div class="action-buttons-group" style="display: flex; align-items: center; gap: 6px; position: relative;">
                 
-                <!-- 3-Dots Menu button -->
-                <button class="action-btn menu-btn" title="More Actions" style="background: transparent; border: none; padding: 6px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
-                    <i class="hgi-stroke hgi-more-vertical" style="font-size: 16px;"></i>
-                </button>
-
-                <!-- Theme switcher -->
-                <button class="action-btn theme-toggle" title="Toggle Theme (Light / Dark Charcoal)" style="background: transparent; border: none; padding: 6px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
-                    <i class="hgi-stroke ${theme === 'dark' ? 'hgi-sun-02' : 'hgi-moon'}" style="font-size: 16px;"></i>
-                </button>
-
-                <!-- Floating Assistant Rounded Capsule Button -->
-                <button class="action-btn sidebar-trigger ${showAiSidebar ? 'ai-active-btn' : ''}" title="Toggle AI Co-pilot Side Panel" style="background: transparent; border: 1px solid var(--color-border-light); border-radius: 12px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--color-text-inactive); font-family: var(--font-ui); font-size: 11px; font-weight: 500; transition: all var(--transition-fast);">
-                    <i class="hgi-stroke hgi-sparkles" style="font-size: 13px; ${showAiSidebar ? 'color: var(--color-input-focus-border);' : ''}"></i>
-                    Assistant
+                <!-- Floating Assistant Avatar Button -->
+                <button class="action-btn sidebar-trigger ${showAiSidebar ? 'ai-active-btn' : ''}" title="Toggle AI Co-pilot Side Panel" style="background: transparent; border: 1px solid var(--color-border-light); border-radius: 50%; width: 22px; height: 22px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition-fast); overflow: hidden; flex-shrink: 0;">
+                    <img src="assets/ai_avatar_orb.png" alt="AI" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover;" />
                 </button>
 
                 <!-- Dropdown Arrow -->
@@ -177,8 +177,14 @@ export class Omnibox extends BaseComponent {
 
                 <!-- User Profile Initials Circle -->
                 <div class="user-avatar" title="Alex's Account" style="width: 22px; height: 22px; border-radius: 50%; background: var(--color-input-focus-border); color: #FFFFFF; font-size: 10px; font-weight: 700; font-family: var(--font-ui); display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none;">A</div>
+
+                <!-- 3-Dots Menu button -->
+                <button class="action-btn menu-btn" title="More Actions" style="background: transparent; border: none; padding: 6px; border-radius: 4px; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center;">
+                    <i class="hgi-stroke hgi-more-vertical" style="font-size: 16px;"></i>
+                </button>
                 
                 ${this.state.isMenuOpen ? this.renderMenuPopover() : ''}
+                ${this.state.isProfileOpen ? this.renderProfilePopover() : ''}
                 ${this.state.isFeatureDropdownOpen ? this.renderFeaturePopover() : ''}
             </div>
         `;
@@ -186,6 +192,10 @@ export class Omnibox extends BaseComponent {
 
     renderMenuPopover() {
         return renderMenuPopover(this.state);
+    }
+
+    renderProfilePopover() {
+        return renderProfilePopover(this.state);
     }
 
     renderFeaturePopover() {
@@ -226,6 +236,11 @@ export class Omnibox extends BaseComponent {
                 input.select();
             }
             if (overlay) overlay.classList.add('visible');
+            this.refreshBackendSuggestions(input.value);
+        });
+
+        input.addEventListener('input', () => {
+            this.refreshBackendSuggestions(input.value);
         });
 
         // Remove old outside-click handler before adding a new one (prevents duplicate listeners)
@@ -240,10 +255,11 @@ export class Omnibox extends BaseComponent {
                 const overlayEl = this.querySelector('#suggestions-overlay');
                 if (overlayEl) overlayEl.classList.remove('visible');
                 
-                if (this.state.isMenuOpen || this.state.isFeatureDropdownOpen) {
+                if (this.state.isMenuOpen || this.state.isFeatureDropdownOpen || this.state.isProfileOpen) {
                     // Use direct state mutation + re-render without triggering setState which re-adds listener
                     this.state.isMenuOpen = false;
                     this.state.isFeatureDropdownOpen = false;
+                    this.state.isProfileOpen = false;
                     this.render();
                     this.afterRender();
                 }
@@ -261,7 +277,8 @@ export class Omnibox extends BaseComponent {
                 e.stopPropagation();
                 this.setState({ 
                     isMenuOpen: !this.state.isMenuOpen,
-                    isFeatureDropdownOpen: false
+                    isFeatureDropdownOpen: false,
+                    isProfileOpen: false
                 });
             });
         }
@@ -273,7 +290,8 @@ export class Omnibox extends BaseComponent {
                 e.stopPropagation();
                 this.setState({ 
                     isFeatureDropdownOpen: !this.state.isFeatureDropdownOpen,
-                    isMenuOpen: false
+                    isMenuOpen: false,
+                    isProfileOpen: false
                 });
             });
         }
@@ -284,7 +302,8 @@ export class Omnibox extends BaseComponent {
             avatarBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.setState({ 
-                    isMenuOpen: !this.state.isMenuOpen,
+                    isProfileOpen: !this.state.isProfileOpen,
+                    isMenuOpen: false,
                     isFeatureDropdownOpen: false
                 });
             });
@@ -300,6 +319,7 @@ export class Omnibox extends BaseComponent {
 
         // Popover Actions (Only if menu is open)
         bindMenuPopoverEvents(this);
+        bindProfilePopoverEvents(this);
         bindFeaturePopoverEvents(this);
 
         input.addEventListener('keydown', (e) => {
@@ -392,22 +412,7 @@ export class Omnibox extends BaseComponent {
             });
         }
 
-        // Theme Toggle Event Listener
-        const themeBtn = this.querySelector('.theme-toggle');
-        if (themeBtn) {
-            themeBtn.addEventListener('click', () => {
-                window.AppState.update(state => {
-                    const newTheme = state.theme === 'dark' ? 'light' : 'dark';
-                    state.theme = newTheme;
-                    
-                    if (newTheme === 'dark') {
-                        document.body.classList.add('dark-theme');
-                    } else {
-                        document.body.classList.remove('dark-theme');
-                    }
-                });
-            });
-        }
+
 
         // URL Bar Right Icons Event Listeners
         const urlPasswordsBtn = this.querySelector('.url-passwords-btn');
@@ -418,13 +423,7 @@ export class Omnibox extends BaseComponent {
             });
         }
 
-        const urlSettingsBtn = this.querySelector('.url-settings-btn');
-        if (urlSettingsBtn) {
-            urlSettingsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.navigateTabSafely('aero://settings');
-            });
-        }
+
 
         const urlShieldBtn = this.querySelector('.url-shield-btn');
         if (urlShieldBtn) {
@@ -467,17 +466,7 @@ export class Omnibox extends BaseComponent {
             });
         }
 
-        const urlCopyLinkBtn = this.querySelector('.url-copy-link-btn');
-        if (urlCopyLinkBtn) {
-            urlCopyLinkBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tab = this.state.activeTab || { url: '', title: '' };
-                if (tab.url) {
-                    navigator.clipboard.writeText(tab.url);
-                    alert("URL copied to clipboard!");
-                }
-            });
-        }
+
     }
 
     siteSecuritySummary() {
@@ -531,7 +520,16 @@ export class Omnibox extends BaseComponent {
         const hasSpaces = /\s/.test(value);
 
         if (hasScheme) {
-            return { url: value };
+            const scheme = value.split(':', 1)[0].toLowerCase();
+            if (['http', 'https'].includes(scheme)) {
+                return { url: value };
+            }
+            return {
+                url: this.buildSearchUrl(value),
+                isSearch: true,
+                query: value,
+                title: `Search: ${value}`
+            };
         }
 
         if (!hasSpaces && (looksLikeLocalhost || looksLikeIp || looksLikeDomain)) {
@@ -572,6 +570,51 @@ export class Omnibox extends BaseComponent {
             return `https://duckduckgo.com/?q=${encoded}`;
         }
         return `https://www.google.com/search?q=${encoded}`;
+    }
+
+    refreshBackendSuggestions(value) {
+        const query = String(value || '').trim();
+        clearTimeout(this._suggestionTimer);
+        if (query.length < 2 || /^[a-z][a-z0-9+.-]*:\/\//i.test(query)) {
+            if ((this.state.suggestions || []).length) {
+                this.setState({ suggestions: [], suggestionQuery: '' });
+            }
+            return;
+        }
+        this._suggestionTimer = setTimeout(async () => {
+            try {
+                const result = await BackendClient.search(query, { limit: 6 });
+                if (!this.isFocused) return;
+                this.setState({
+                    suggestions: result.hits || [],
+                    suggestionQuery: query
+                });
+            } catch {}
+        }, 120);
+    }
+
+    iconFromKind(kind) {
+        return {
+            bookmark: 'hgi-star',
+            history: 'hgi-clock-01',
+            tab: 'hgi-global',
+            reading_list: 'hgi-book-open-01',
+            download: 'hgi-download-01',
+            page_snapshot: 'hgi-global'
+        }[kind] || 'hgi-search-01';
+    }
+
+    escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    escapeAttr(value) {
+        return this.escapeHtml(value).replace(/`/g, '&#096;');
     }
 
     navigateTab(url, meta = {}) {

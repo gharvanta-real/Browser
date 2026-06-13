@@ -29,7 +29,7 @@ function showBookmarkFolderDropdown(anchorEl, folderTitle, bookmarks) {
 
     if (folderItems.length === 0) {
         dropdown.innerHTML = `
-            <div style="padding: 6px 12px; font-size: var(--font-size-xs); font-family: var(--font-ui); color: var(--color-text-inactive); font-style: italic;">
+            <div style="padding: 6px 12px; font-size: var(--font-size-sm); font-family: var(--font-ui); color: var(--color-text-inactive); font-style: italic;">
                 (Empty)
             </div>
         `;
@@ -37,7 +37,7 @@ function showBookmarkFolderDropdown(anchorEl, folderTitle, bookmarks) {
         dropdown.innerHTML = folderItems.map(b => {
             const faviconUrl = b.favicon || `https://www.google.com/s2/favicons?sz=32&domain=${new URL(b.url).hostname}`;
             return `
-                <div class="folder-dropdown-item" data-url="${b.url}" style="padding: 6px 12px; font-size: var(--font-size-xs); font-family: var(--font-ui); display: flex; align-items: center; gap: 8px; cursor: pointer; color: ${isDark ? '#F1F3F4' : '#1F2937'}; transition: background 0.1s; border-radius: 4px; margin: 0 4px;">
+                <div class="folder-dropdown-item" data-url="${b.url}" style="padding: 6px 12px; font-size: var(--font-size-sm); font-family: var(--font-ui); display: flex; align-items: center; gap: 8px; cursor: pointer; color: ${isDark ? '#F1F3F4' : '#1F2937'}; transition: background 0.1s; border-radius: 4px; margin: 0 4px;">
                     <img src="${faviconUrl}" alt="" style="width: 14px; height: 14px; border-radius: 2px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';" /><i class="hgi-stroke hgi-globe" style="font-size: 13px; display: none;"></i>
                     <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${b.title}</span>
                 </div>

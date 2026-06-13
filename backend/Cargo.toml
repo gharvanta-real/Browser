@@ -37,4 +37,4 @@ tower-http = { version = "0.6", features = ["cors"] }
 tungstenite = "0.28"
 url = "2.5"
 uuid = { version = "1.11", features = ["serde", "v4"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_Security_Credentials", "Win32_System_Memory", "Win32_Graphics_Gdi"] }

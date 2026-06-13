@@ -150,6 +150,7 @@ dependencies = [
  "browser_ai",
  "browser_automation",
  "browser_cdp",
+ "browser_crypto",
  "browser_policy",
  "browser_storage",
  "chrono",

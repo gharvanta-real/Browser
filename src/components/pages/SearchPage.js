@@ -1,11 +1,14 @@
 import { BaseComponent } from '../BaseComponent.js';
+import { BackendClient } from '../../services/BackendClient.js';
 
 export class SearchPage extends BaseComponent {
     constructor() {
         super();
         this.state = {
             query: '',
-            activeFilter: 'All'
+            activeFilter: 'All',
+            backendHits: [],
+            backendQuery: ''
         };
 
         this.searchIndex = [
@@ -146,6 +149,8 @@ export class SearchPage extends BaseComponent {
         this.querySelectorAll('.filter-pill').forEach(pill => {
             pill.addEventListener('click', () => {
                 this.state.activeFilter = pill.getAttribute('data-filter');
+                this.state.backendQuery = '';
+                this.state.backendHits = [];
                 this.querySelectorAll('.filter-pill').forEach(p => {
                     const isCurrent = p.getAttribute('data-filter') === this.state.activeFilter;
                     p.style.background = isCurrent ? 'var(--color-input-focus-border)' : 'var(--color-window-bg)';
@@ -158,13 +163,38 @@ export class SearchPage extends BaseComponent {
         this.updateResults();
     }
 
-    updateResults() {
+    async updateResults() {
         const resultsList = this.querySelector('#search-results-list');
         const gsePanel = this.querySelector('#gse-panel');
         if (!resultsList) return;
 
         const query = this.state.query.trim().toLowerCase();
         const activeFilter = this.state.activeFilter;
+        const kindMap = {
+            Bookmarks: ['bookmark'],
+            History: ['history'],
+            Web: ['tab', 'page_snapshot']
+        };
+
+        if (query.length >= 2 && this.state.backendQuery !== query) {
+            this.state.backendQuery = query;
+            BackendClient.search(query, {
+                limit: 20,
+                kinds: activeFilter === 'All' ? null : kindMap[activeFilter] || null
+            }).then(result => {
+                if (this.state.query.trim().toLowerCase() !== query) return;
+                this.state.backendHits = (result.hits || []).map(hit => ({
+                    title: hit.title,
+                    url: hit.url || '',
+                    snippet: hit.snippet || hit.source || '',
+                    category: this.categoryFromKind(hit.kind),
+                    badge: hit.source || hit.kind,
+                    icon: this.iconFromKind(hit.kind),
+                    score: hit.score
+                }));
+                this.updateResults();
+            }).catch(() => {});
+        }
 
         // Build dynamic search index from global state
         const dynamicIndex = [
@@ -188,12 +218,20 @@ export class SearchPage extends BaseComponent {
         ];
 
         // Filter search index
-        const filtered = dynamicIndex.filter(item => {
+        const backendHits = query.length >= 2 ? (this.state.backendHits || []) : [];
+        const filteredLocal = dynamicIndex.filter(item => {
             const matchesQuery = item.title.toLowerCase().includes(query) || 
                                  item.url.toLowerCase().includes(query) || 
                                  item.snippet.toLowerCase().includes(query);
             const matchesFilter = activeFilter === 'All' || item.category === activeFilter;
             return matchesQuery && matchesFilter;
+        });
+        const seen = new Set();
+        const filtered = [...backendHits, ...filteredLocal].filter(item => {
+            const key = `${item.category}:${item.url}:${item.title}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
         });
 
         // Render Results
@@ -278,5 +316,27 @@ export class SearchPage extends BaseComponent {
         } else if (gsePanel) {
             gsePanel.style.display = 'none';
         }
+    }
+
+    categoryFromKind(kind) {
+        return {
+            bookmark: 'Bookmarks',
+            history: 'History',
+            tab: 'Web',
+            reading_list: 'Bookmarks',
+            download: 'History',
+            page_snapshot: 'Web'
+        }[kind] || 'Web';
+    }
+
+    iconFromKind(kind) {
+        return {
+            bookmark: 'hgi-star',
+            history: 'hgi-clock-01',
+            tab: 'hgi-global',
+            reading_list: 'hgi-book-open-01',
+            download: 'hgi-download-01',
+            page_snapshot: 'hgi-global'
+        }[kind] || 'hgi-global';
     }
 }

@@ -9,6 +9,7 @@ export class WebViewport extends BaseComponent {
         this.highlightedElementId = null;
         this.lastRenderKey = '';
         this.webviewTargets = new Map();
+        this.pendingCredentials = new Map();
     }
 
     connectedCallback() {
@@ -370,7 +371,7 @@ export class WebViewport extends BaseComponent {
         const tabs = window.AppState?.tabs || [];
         const activeId = this.state.activeTab?.id;
         return `
-            <div class="chromium-webview-stack" style="position: ${this.shouldUseNativeWebview(this.state.activeTab?.url) ? 'relative' : 'absolute'}; inset: 0; flex: 1; min-height: 0; display: ${this.shouldUseNativeWebview(this.state.activeTab?.url) ? 'flex' : 'none'}; background: #fff;">
+            <div class="chromium-webview-stack" style="position: ${this.shouldUseNativeWebview(this.state.activeTab?.url) ? 'relative' : 'absolute'}; inset: 0; flex: 1; min-height: 0; display: ${this.shouldUseNativeWebview(this.state.activeTab?.url) ? 'flex' : 'none'}; background: var(--color-viewport-bg);">
                 ${tabs.filter(tab => this.shouldUseNativeWebview(tab.url)).map(tab => this.renderChromiumWebview(tab, tab.id === activeId)).join('')}
             </div>
         `;
@@ -387,7 +388,7 @@ export class WebViewport extends BaseComponent {
                 src="${safeUrl}"
                 partition="persist:aero-default"
                 allowpopups
-                style="display: ${active ? 'flex' : 'none'}; flex: 1; width: 100%; height: 100%; border: 0; background: #fff;"
+                style="display: ${active ? 'flex' : 'none'}; flex: 1; width: 100%; height: 100%; border: 0; background: var(--color-viewport-bg);"
             ></webview>
         `;
     }
@@ -425,32 +426,35 @@ export class WebViewport extends BaseComponent {
         const safeQuery = this.escapeHtml(query || 'Search');
         const results = this.searchResultItems(query);
         const isGoogleQuery = String(query || '').trim().toLowerCase() === 'google';
+        
+        const isDark = document.documentElement.classList.contains('dark-theme');
+        const titleColor = isDark ? '#8ab4f8' : '#1a0dab';
 
         return `
-            <div class="manual-search-page" style="background: #fff; color: #202124; min-height: 100%; padding: 0 0 48px; box-sizing: border-box; font-family: Arial, var(--font-ui), sans-serif;">
+            <div class="manual-search-page" style="background: var(--color-viewport-bg); color: var(--color-viewport-text); min-height: 100%; padding: 0 0 48px; box-sizing: border-box; font-family: Arial, var(--font-ui), sans-serif;">
                 <div style="display: flex; align-items: center; gap: 28px; padding: 28px 42px 18px 62px;">
                     <div style="font-size: 34px; font-weight: 700; letter-spacing: -1.5px; line-height: 1;">
                         <span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span>
                     </div>
-                    <div style="width: min(720px, calc(100vw - 420px)); min-height: 46px; border-radius: 999px; background: #fff; box-shadow: 0 1px 6px rgba(32,33,36,.28); display: flex; align-items: center; padding: 0 16px 0 24px; gap: 14px;">
-                        <span style="font-size: 16px; color: #202124; flex: 1;">${safeQuery}</span>
-                        <i class="hgi-stroke hgi-cancel-01" style="font-size: 16px; color: #5f6368;"></i>
-                        <span style="height: 28px; width: 1px; background: #dadce0;"></span>
-                        <i class="hgi-stroke hgi-keyboard" style="font-size: 17px; color: #5f6368;"></i>
-                        <i class="hgi-stroke hgi-mic-01" style="font-size: 17px; color: #5f6368;"></i>
-                        <i class="hgi-stroke hgi-camera-01" style="font-size: 17px; color: #5f6368;"></i>
+                    <div style="width: min(720px, calc(100vw - 420px)); min-height: 46px; border-radius: 999px; background: var(--color-card-bg); border: 1px solid var(--color-viewport-border); box-shadow: var(--shadow-sm); display: flex; align-items: center; padding: 0 16px 0 24px; gap: 14px;">
+                        <span style="font-size: 16px; color: var(--color-viewport-text); flex: 1;">${safeQuery}</span>
+                        <i class="hgi-stroke hgi-cancel-01" style="font-size: 16px; color: var(--color-text-inactive);"></i>
+                        <span style="height: 28px; width: 1px; background: var(--color-viewport-border);"></span>
+                        <i class="hgi-stroke hgi-keyboard" style="font-size: 17px; color: var(--color-text-inactive);"></i>
+                        <i class="hgi-stroke hgi-mic-01" style="font-size: 17px; color: var(--color-text-inactive);"></i>
+                        <i class="hgi-stroke hgi-camera-01" style="font-size: 17px; color: var(--color-text-inactive);"></i>
                         <i class="hgi-stroke hgi-search-01" style="font-size: 18px; color: #1a73e8;"></i>
                     </div>
-                    <div style="margin-left: auto; display: flex; align-items: center; gap: 18px; color: #3c4043;">
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 18px; color: var(--color-text-inactive);">
                         <i class="hgi-stroke hgi-flask" style="font-size: 20px;"></i>
                         <i class="hgi-stroke hgi-grid-view" style="font-size: 20px;"></i>
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: #e8f0fe; display: grid; place-items: center; color: #1a73e8; font-weight: 700;">A</div>
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--color-active-bg); display: grid; place-items: center; color: var(--color-text-active); font-weight: 700;">A</div>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 28px; padding-left: 262px; border-bottom: 1px solid #dadce0; color: #5f6368; font-size: 14px;">
+                <div style="display: flex; gap: 28px; padding-left: 262px; border-bottom: 1px solid var(--color-viewport-border); color: var(--color-viewport-text-muted); font-size: 14px;">
                     <span style="padding: 12px 0 13px;">AI Mode</span>
-                    <span style="padding: 12px 0 11px; color: #202124; border-bottom: 3px solid #202124;">All</span>
+                    <span style="padding: 12px 0 11px; color: var(--color-viewport-text); border-bottom: 3px solid var(--color-viewport-text);">All</span>
                     <span style="padding: 12px 0 13px;">Videos</span>
                     <span style="padding: 12px 0 13px;">Images</span>
                     <span style="padding: 12px 0 13px;">News</span>
@@ -462,34 +466,34 @@ export class WebViewport extends BaseComponent {
 
                 <div style="display: grid; grid-template-columns: minmax(560px, 810px) minmax(320px, 492px); gap: 40px; padding: 28px 60px 0 262px;">
                     <main>
-                        <p style="margin: 0 0 22px; font-size: 14px; color: #70757a;">About ${(isGoogleQuery ? 8570000000 : Math.max(78000, safeQuery.length * 358000)).toLocaleString()} results</p>
+                        <p style="margin: 0 0 22px; font-size: 14px; color: var(--color-viewport-text-muted);">About ${(isGoogleQuery ? 8570000000 : Math.max(78000, safeQuery.length * 358000)).toLocaleString()} results</p>
                         <div style="display: flex; flex-direction: column; gap: 24px;">
                             ${results.map((item, index) => `
                                 <article class="manual-search-result" data-url="${item.url}" style="padding: 0 0 ${index === 0 && item.sitelinks ? '10px' : '18px'};">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-                                        <span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #f1f3f4; color: ${item.brandColor || '#1a73e8'};">
+                                        <span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--color-input-bg); color: ${item.brandColor || '#1a73e8'};">
                                             ${item.logoText ? `<span style="font-weight: 700; font-size: 18px;">${item.logoText}</span>` : `<i class="hgi-stroke ${item.icon}" style="font-size: 15px;"></i>`}
                                         </span>
                                         <div style="display: flex; flex-direction: column;">
-                                            <span style="font-size: 14px; color: #202124;">${item.source}</span>
-                                            <span style="font-size: 12px; color: #4d5156;">${item.url}</span>
+                                            <span style="font-size: 14px; color: var(--color-viewport-text);">${item.source}</span>
+                                            <span style="font-size: 12px; color: var(--color-viewport-text-muted);">${item.url}</span>
                                         </div>
-                                        <i class="hgi-stroke hgi-more-vertical" style="font-size: 14px; color: #5f6368;"></i>
+                                        <i class="hgi-stroke hgi-more-vertical" style="font-size: 14px; color: var(--color-text-inactive);"></i>
                                     </div>
-                                    <h3 style="margin: 0 0 6px; font-size: 20px; line-height: 1.3; font-weight: 400; color: #1a0dab;">${item.title}</h3>
-                                    <p style="margin: 0; color: #4d5156; font-size: 14px; line-height: 1.55;">${item.snippet}</p>
+                                    <h3 style="margin: 0 0 6px; font-size: 20px; line-height: 1.3; font-weight: 400; color: ${titleColor};">${item.title}</h3>
+                                    <p style="margin: 0; color: var(--color-viewport-text-muted); font-size: 14px; line-height: 1.55;">${item.snippet}</p>
                                     ${item.sitelinks ? `
-                                        <div style="margin: 22px 0 0 24px; border-top: 1px solid #dadce0;">
+                                        <div style="margin: 22px 0 0 24px; border-top: 1px solid var(--color-viewport-border);">
                                             ${item.sitelinks.map(link => `
-                                                <div style="display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid #dadce0;">
+                                                <div style="display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--color-viewport-border);">
                                                     <div>
-                                                        <div style="font-size: 20px; color: #1a0dab; line-height: 1.25;">${link.title}</div>
-                                                        <div style="font-size: 14px; color: #4d5156; margin-top: 3px;">${link.snippet}</div>
+                                                        <div style="font-size: 20px; color: ${titleColor}; line-height: 1.25;">${link.title}</div>
+                                                        <div style="font-size: 14px; color: var(--color-viewport-text-muted); margin-top: 3px;">${link.snippet}</div>
                                                     </div>
-                                                    <i class="hgi-stroke hgi-arrow-right-01" style="font-size: 18px; color: #5f6368; margin-top: 7px;"></i>
+                                                    <i class="hgi-stroke hgi-arrow-right-01" style="font-size: 18px; color: var(--color-text-inactive); margin-top: 7px;"></i>
                                                 </div>
                                             `).join('')}
-                                            <div style="font-size: 14px; color: #1a0dab; padding-top: 14px;">More results from ${item.source.toLowerCase()} &raquo;</div>
+                                            <div style="font-size: 14px; color: ${titleColor}; padding-top: 14px;">More results from ${item.source.toLowerCase()} &raquo;</div>
                                         </div>
                                     ` : ''}
                                 </article>
@@ -497,15 +501,15 @@ export class WebViewport extends BaseComponent {
                         </div>
                     </main>
 
-                    <aside style="border-left: 1px solid #dadce0; padding-left: 28px; display: ${isGoogleQuery ? 'block' : 'none'};">
+                    <aside style="border-left: 1px solid var(--color-viewport-border); padding-left: 28px; display: ${isGoogleQuery ? 'block' : 'none'};">
                         <div style="display: flex; align-items: center; gap: 18px; margin-bottom: 14px;">
                             <div style="font-size: 56px; font-weight: 800; letter-spacing: -3px; color:#4285F4;">G</div>
                             <div>
-                                <h2 style="margin: 0; font-size: 30px; font-weight: 400; color: #202124;">Google</h2>
-                                <div style="font-size: 14px; color: #70757a;">Technology company</div>
+                                <h2 style="margin: 0; font-size: 30px; font-weight: 400; color: var(--color-viewport-text);">Google</h2>
+                                <div style="font-size: 14px; color: var(--color-viewport-text-muted);">Technology company</div>
                             </div>
                         </div>
-                        <p style="margin: 18px 0 20px; font-size: 14px; line-height: 1.55; color: #202124;">Google LLC is an American multinational technology company focused on search, cloud computing, online advertising, software, and consumer products.</p>
+                        <p style="margin: 18px 0 20px; font-size: 14px; line-height: 1.55; color: var(--color-viewport-text);">Google LLC is an American multinational technology company focused on search, cloud computing, online advertising, software, and consumer products.</p>
                         <div style="display: grid; grid-template-columns: 1fr; border-radius: 10px; overflow: hidden; margin-top: 18px;">
                             ${[
                                 ['Founders', 'Larry Page, Sergey Brin'],
@@ -514,9 +518,9 @@ export class WebViewport extends BaseComponent {
                                 ['Parent', 'Alphabet Inc.'],
                                 ['Headquarters', 'Mountain View, California']
                             ].map(row => `
-                                <div style="display: grid; grid-template-columns: 132px 1fr; background: #f1f3f4; border-bottom: 2px solid #fff; font-size: 14px;">
-                                    <div style="padding: 13px 14px; color: #5f6368;">${row[0]}</div>
-                                    <div style="padding: 13px 14px; color: #202124;">${row[1]}</div>
+                                <div style="display: grid; grid-template-columns: 132px 1fr; background: var(--color-input-bg); border-bottom: 2px solid var(--color-viewport-bg); font-size: 14px;">
+                                    <div style="padding: 13px 14px; color: var(--color-viewport-text-muted);">${row[0]}</div>
+                                    <div style="padding: 13px 14px; color: var(--color-viewport-text);">${row[1]}</div>
                                 </div>
                             `).join('')}
                         </div>
@@ -723,6 +727,10 @@ export class WebViewport extends BaseComponent {
             webview.dataset.bound = 'true';
             this.webviewTargets.set(tabId, webview.getAttribute('src') || '');
 
+            webview.addEventListener('dom-ready', () => {
+                this.applyWebviewTheme(webview);
+            });
+
             webview.addEventListener('did-start-loading', () => {
                 window.AppState.update(state => {
                     const targetTab = state.tabs.find(tab => tab.id === tabId);
@@ -734,6 +742,7 @@ export class WebViewport extends BaseComponent {
             });
 
             webview.addEventListener('did-stop-loading', () => {
+                this.applyWebviewTheme(webview);
                 window.AppState.update(state => {
                     const targetTab = state.tabs.find(tab => tab.id === tabId);
                     if (targetTab) {
@@ -824,6 +833,19 @@ export class WebViewport extends BaseComponent {
         this.syncRenderedWebviews(window.AppState);
     }
 
+    applyWebviewTheme(webview) {
+        if (!webview) return;
+        const isDark = document.documentElement.classList.contains('dark-theme');
+        const scheme = isDark ? 'dark' : 'light';
+        try {
+            webview.executeJavaScript(`
+                if (document.documentElement) {
+                    document.documentElement.style.colorScheme = "${scheme}";
+                }
+            `).catch(() => {});
+        } catch (e) {}
+    }
+
     syncRenderedWebviews(state) {
         if (!state) return;
         const activeId = state.activeTabId;
@@ -842,6 +864,8 @@ export class WebViewport extends BaseComponent {
             const isActive = tabId === activeId && this.shouldUseNativeWebview(tab?.url);
             webview.style.display = isActive ? 'flex' : 'none';
             if (isActive) window.AeroActiveWebview = webview;
+
+            this.applyWebviewTheme(webview);
 
             if (tab && this.shouldUseNativeWebview(tab.url) && this.webviewTargets.get(tabId) !== tab.url) {
                 this.webviewTargets.set(tabId, tab.url);
@@ -922,7 +946,7 @@ export class WebViewport extends BaseComponent {
 
         if (webview && this.shouldUseNativeWebview(activeTab?.url) && typeof webview.executeJavaScript === 'function') {
             try {
-                return await webview.executeJavaScript(`(() => {
+                const domSnapshot = await webview.executeJavaScript(`(() => {
                     const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 8000);
                     const headings = Array.from(document.querySelectorAll('h1,h2,h3')).slice(0, 20).map(node => ({
                         level: node.tagName.toLowerCase(),
@@ -1010,8 +1034,10 @@ export class WebViewport extends BaseComponent {
                             required: Boolean(field.required)
                         }))
                     }));
-                    return { url: location.href, title: document.title, text, headings, links, interactives, forms };
+                    return { url: location.href, title: document.title, text, headings, links, interactives, forms, source: 'dom_snapshot' };
                 })()`, true);
+                const axSnapshot = await this.captureNativeAxSnapshot(webview);
+                return this.mergeNativeAxSnapshot(domSnapshot, axSnapshot);
             } catch (error) {
                 return {
                     url: activeTab?.url || '',
@@ -1052,6 +1078,97 @@ export class WebViewport extends BaseComponent {
         };
     }
 
+    async captureNativeAxSnapshot(webview) {
+        try {
+            const webContentsId = webview && typeof webview.getWebContentsId === 'function'
+                ? webview.getWebContentsId()
+                : null;
+            if (!webContentsId || !window.aeroNative?.getGuestAxTree) return null;
+            const snapshot = await window.aeroNative.getGuestAxTree(webContentsId);
+            if (!snapshot?.ok || !Array.isArray(snapshot.nodes) || snapshot.nodes.length === 0) return snapshot || null;
+            return snapshot;
+        } catch (error) {
+            return { ok: false, error: error?.message || String(error), nodes: [] };
+        }
+    }
+
+    mergeNativeAxSnapshot(domSnapshot, axSnapshot) {
+        if (!axSnapshot?.ok || !Array.isArray(axSnapshot.nodes) || axSnapshot.nodes.length === 0) {
+            return {
+                ...domSnapshot,
+                axTree: axSnapshot ? {
+                    source: 'chromium_ax_tree',
+                    ok: false,
+                    error: axSnapshot.error || 'No native AX nodes returned.',
+                    nodeCount: axSnapshot.nodeCount || 0,
+                    interactiveCount: 0
+                } : null
+            };
+        }
+
+        const domControls = Array.isArray(domSnapshot?.interactives) ? domSnapshot.interactives : [];
+        const nativeControls = axSnapshot.nodes.map((node, index) => ({
+            id: `ax-native-${node.id || index}`,
+            role: node.role || 'control',
+            label: node.label || node.role || 'control',
+            tag: this.tagFromAxRole(node.role),
+            inputType: this.inputTypeFromAxRole(node.role, node.label),
+            name: node.label || '',
+            idAttr: String(node.backendDOMNodeId || ''),
+            placeholder: '',
+            autocomplete: '',
+            valuePreview: node.valuePreview || '',
+            disabled: Boolean(node.disabled),
+            required: Boolean(node.required),
+            focused: Boolean(node.focused),
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            backendDOMNodeId: node.backendDOMNodeId,
+            source: 'chromium_ax_tree'
+        }));
+
+        const merged = [...nativeControls];
+        domControls.forEach(control => {
+            const duplicate = merged.some(nativeControl => (
+                Math.abs(Number(nativeControl.x || 0) - Number(control.x || 0)) <= 4
+                && Math.abs(Number(nativeControl.y || 0) - Number(control.y || 0)) <= 4
+            ));
+            if (!duplicate) merged.push({ ...control, source: control.source || 'dom_snapshot' });
+        });
+
+        return {
+            ...domSnapshot,
+            title: domSnapshot?.title || axSnapshot.title || '',
+            url: domSnapshot?.url || axSnapshot.url || '',
+            interactives: merged.slice(0, 180),
+            axTree: {
+                source: 'chromium_ax_tree',
+                ok: true,
+                nodeCount: axSnapshot.nodeCount || 0,
+                interactiveCount: nativeControls.length
+            }
+        };
+    }
+
+    tagFromAxRole(role = '') {
+        const normalized = String(role || '').toLowerCase();
+        if (normalized === 'link') return 'a';
+        if (normalized === 'button' || normalized === 'tab' || normalized === 'menuitem') return 'button';
+        if (['textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton'].includes(normalized)) return 'input';
+        return 'control';
+    }
+
+    inputTypeFromAxRole(role = '', label = '') {
+        const value = `${role} ${label}`.toLowerCase();
+        if (value.includes('password')) return 'password';
+        if (value.includes('search')) return 'search';
+        if (value.includes('email')) return 'email';
+        if (value.includes('phone') || value.includes('tel')) return 'tel';
+        return '';
+    }
+
     async executeBrowserCommand(command, reason = 'User requested browser action') {
         if (!command?.type) {
             return { ok: false, message: 'Missing browser command.' };
@@ -1066,6 +1183,7 @@ export class WebViewport extends BaseComponent {
 
         try {
             command = await this.resolveCommandTarget(command);
+            const beforeSnapshot = await this.captureActivePageSnapshot();
             const evaluation = await BackendClient.evaluateAutomation(command, { origin, reason });
             const safety = evaluation.safety;
             if (safety?.decision === 'require_confirmation' && window.AppState?.aiRequireConfirmation !== false) {
@@ -1085,14 +1203,54 @@ export class WebViewport extends BaseComponent {
             const compiled = await BackendClient.compileCdp(command);
             const webview = this.querySelector(`.chromium-webview[data-tab-id="${activeId}"]`) || window.AeroActiveWebview;
             const report = await this.executeCompiledCdp(compiled.calls || [], webview);
+            await this.sleep(180);
+            const afterSnapshot = await this.captureActivePageSnapshot();
+            const verification = this.verifyCommandEffect(command, beforeSnapshot, afterSnapshot);
+            this.trackCredentialCommand(command, activeTab);
             this.hideLiveCursorSoon();
-            this.logBrowserCommand(`Executed ${command.type} through native browser input`, 'success');
-            return { ok: true, evaluation, compiled, report };
+            this.logBrowserCommand(`Executed ${command.type} through native browser input (${verification.status})`, verification.status === 'uncertain' ? 'warning' : 'success');
+            return { ok: true, evaluation, compiled, report, verification };
         } catch (error) {
             const message = error?.message || String(error);
             this.logBrowserCommand(`Command failed: ${message}`, 'warning');
             return { ok: false, message };
         }
+    }
+
+    verifyCommandEffect(command, beforeSnapshot, afterSnapshot) {
+        const beforeUrl = beforeSnapshot?.url || '';
+        const afterUrl = afterSnapshot?.url || '';
+        if (command.type === 'open_page') {
+            return {
+                status: afterUrl && afterUrl !== beforeUrl ? 'verified' : 'uncertain',
+                detail: afterUrl && afterUrl !== beforeUrl ? `navigated to ${afterUrl}` : 'navigation did not visibly change URL yet'
+            };
+        }
+        if (command.type === 'fill') {
+            const label = this.normalizeTargetLabel(command.target?.label || '');
+            const value = String(command.text || '');
+            const match = (afterSnapshot?.interactives || []).find(item => {
+                const itemLabel = this.normalizeTargetLabel(item.label || item.placeholder || item.name || item.idAttr || '');
+                return itemLabel.includes(label) || label.includes(itemLabel);
+            });
+            const valuePreview = String(match?.valuePreview || '');
+            return {
+                status: valuePreview && (valuePreview.includes(value.slice(0, 12)) || value.includes(valuePreview)) ? 'verified' : 'uncertain',
+                detail: valuePreview ? 'field value changed after fill' : 'field value was not readable after fill'
+            };
+        }
+        if (command.type === 'click' || command.type === 'key_press') {
+            const beforeText = beforeSnapshot?.text || '';
+            const afterText = afterSnapshot?.text || '';
+            return {
+                status: beforeUrl !== afterUrl || beforeText !== afterText ? 'verified' : 'uncertain',
+                detail: beforeUrl !== afterUrl ? `URL changed to ${afterUrl}` : 'page state did not expose a readable change'
+            };
+        }
+        if (command.type === 'scroll') {
+            return { status: 'verified', detail: 'native scroll event dispatched' };
+        }
+        return { status: 'unknown', detail: 'no verifier for command type' };
     }
 
     async resolveCommandTarget(command) {
@@ -1153,6 +1311,60 @@ export class WebViewport extends BaseComponent {
         const fieldBoost = /email|password|search|name|phone|address|city|zip|otp|code/i.test(wanted)
             && /textbox|combobox|input|textarea/i.test(`${role} ${tag}`) ? 10 : 0;
         return hits ? hits * 12 + fieldBoost : 0;
+    }
+
+    trackCredentialCommand(command, activeTab) {
+        const origin = this.originFromUrl(activeTab?.url);
+        if (!origin || origin === 'unknown-origin') return;
+        const label = this.normalizeTargetLabel(command?.target?.label || command?.target?.ax_node_id || '');
+        if (command?.type === 'fill') {
+            const entry = this.pendingCredentials.get(origin) || {};
+            if (/password|passcode|pass word/.test(label)) {
+                entry.password = String(command.text || '');
+            } else if (/email|username|user name|login|phone/.test(label)) {
+                entry.username = String(command.text || '');
+            }
+            entry.site = this.siteNameFromUrl(activeTab?.url);
+            entry.updatedAt = Date.now();
+            if (entry.username || entry.password) this.pendingCredentials.set(origin, entry);
+            return;
+        }
+        if ((command?.type === 'click' || command?.type === 'key_press') && this.pendingCredentials.has(origin)) {
+            this.maybeOfferPasswordSave(origin, activeTab).catch(error => {
+                console.warn('Password save offer failed:', error);
+            });
+        }
+    }
+
+    async maybeOfferPasswordSave(origin, activeTab) {
+        const entry = this.pendingCredentials.get(origin);
+        if (!entry?.username || !entry?.password) return;
+        if (Date.now() - Number(entry.updatedAt || 0) > 10 * 60 * 1000) {
+            this.pendingCredentials.delete(origin);
+            return;
+        }
+        const allow = window.confirm?.(`Save password for ${entry.site || origin}?`);
+        if (!allow) {
+            this.pendingCredentials.delete(origin);
+            return;
+        }
+        await BackendClient.savePassword({
+            site: entry.site || origin,
+            origin,
+            username: entry.username,
+            password: entry.password
+        });
+        this.pendingCredentials.delete(origin);
+        this.logBrowserCommand(`Saved password for ${entry.site || origin} to encrypted vault`, 'success');
+    }
+
+    siteNameFromUrl(url) {
+        try {
+            const parsed = new URL(url);
+            return parsed.hostname.replace(/^www\./, '');
+        } catch {
+            return 'Current site';
+        }
     }
 
     async executeCompiledCdp(calls, webview) {
@@ -1217,7 +1429,12 @@ export class WebViewport extends BaseComponent {
         }
 
         if (call.method === 'Accessibility.getFullAXTree') {
-            return { method: call.method, ok: true, result: await this.captureActivePageSnapshot() };
+            const axTree = webview ? await this.captureNativeAxSnapshot(webview) : null;
+            return {
+                method: call.method,
+                ok: Boolean(axTree?.ok),
+                result: axTree || await this.captureActivePageSnapshot()
+            };
         }
 
         if (call.method === 'Page.captureScreenshot') {

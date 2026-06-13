@@ -11,6 +11,7 @@
             document.querySelector('.bookmark-folder-dropdown') ||
             document.querySelector('.aero-context-menu') ||
             document.querySelector('.menu-popover-dropdown') ||
+            document.querySelector('.profile-dropdown-popover') ||
             document.querySelector('.features-dropdown-popover') ||
             document.querySelector('.ai-dropdown-popover') ||
             isEbpDropdownOpen ||
@@ -38,7 +39,7 @@
                     
                     const omnibox = document.getElementById('browser-nav');
                     if (omnibox && typeof omnibox.setState === 'function') {
-                        omnibox.setState({ isMenuOpen: false, isFeatureDropdownOpen: false });
+                        omnibox.setState({ isMenuOpen: false, isFeatureDropdownOpen: false, isProfileOpen: false });
                         omnibox.isFocused = false;
                         const overlay = omnibox.querySelector('#suggestions-overlay');
                         if (overlay) overlay.classList.remove('visible');

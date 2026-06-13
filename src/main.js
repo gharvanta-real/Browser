@@ -32,6 +32,10 @@ window.AppState.subscribe(state => {
     const isDark = state.theme === 'dark' || (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark-theme', isDark);
     
+    if (window.aeroNative && typeof window.aeroNative.setTheme === 'function') {
+        window.aeroNative.setTheme(state.theme);
+    }
+    
     if (state.accentColor) {
         document.documentElement.style.setProperty('--color-input-focus-border', state.accentColor);
     }
@@ -62,16 +66,12 @@ window.AppState.subscribe(state => {
         if (state.showBookmarksBar === false) {
             bookmarksShelf.style.display = 'none';
             if (topNav) {
-                // Fully rounded pill when no bookmarks bar below
-                topNav.style.borderRadius = '12px';
                 topNav.style.marginBottom = '0';
                 topNav.style.boxShadow = 'none';
             }
         } else {
             bookmarksShelf.style.display = 'flex';
             if (topNav) {
-                // Flat bottom — bookmarks bar attaches below
-                topNav.style.borderRadius = '12px 12px 0 0';
                 topNav.style.marginBottom = '';
                 topNav.style.boxShadow = '';
             }
@@ -257,8 +257,24 @@ if (window.aeroNative) {
 
     if (window.aeroNative.onPermission) {
         window.aeroNative.onPermission(payload => {
-            if (payload.allowed) return;
             window.AppState.update(state => {
+                let origin = 'unknown';
+                try {
+                    origin = new URL(payload.requestingUrl).origin;
+                } catch {}
+                const event = {
+                    id: `${origin}:${payload.permission}`,
+                    origin,
+                    permission: payload.permission,
+                    allowed: Boolean(payload.allowed),
+                    remembered: Boolean(payload.remembered),
+                    lastSeen: new Date().toISOString()
+                };
+                state.sitePermissions = [
+                    event,
+                    ...(state.sitePermissions || []).filter(item => item.id !== event.id)
+                ].slice(0, 200);
+                if (payload.allowed) return;
                 state.taskLogs.push({
                     text: `Blocked ${payload.permission} permission from ${payload.requestingUrl || 'active page'}`,
                     status: 'warning'

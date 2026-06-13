@@ -164,11 +164,16 @@ export class WorkspacesPage extends BaseComponent {
                     
                     <!-- Page Header -->
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
-                            <h2 style="margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); display: flex; align-items: center; gap: 8px;">
-                                <i class="hgi-stroke hgi-grid-view" style="color: #1A73E8;"></i> Browser Workspaces
-                            </h2>
-                            <p style="margin: 0; color: var(--color-viewport-text-muted); font-size: var(--font-size-sm);">Group tabs into isolated, clean working environments</p>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <button id="workspaces-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                            </button>
+                            <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
+                                <h2 style="margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); display: flex; align-items: center; gap: 8px;">
+                                    <i class="hgi-stroke hgi-grid-view" style="color: #1A73E8;"></i> Browser Workspaces
+                                </h2>
+                                <p style="margin: 0; color: var(--color-viewport-text-muted); font-size: var(--font-size-sm);">Group tabs into isolated, clean working environments</p>
+                            </div>
                         </div>
                         <button id="open-create-modal-btn" style="background: #1A73E8; color: #FFFFFF; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); padding: var(--spacing-sm) var(--spacing-lg); border-radius: var(--border-radius-sm); cursor: pointer; border: none; display: flex; align-items: center; gap: var(--spacing-sm);">
                             <i class="hgi-stroke hgi-plus" style="font-size: 13px;"></i> Create Workspace
@@ -207,6 +212,10 @@ export class WorkspacesPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#workspaces-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         // Switch workspace buttons
         this.querySelectorAll('.switch-w-btn').forEach(btn => {
             btn.addEventListener('click', () => {

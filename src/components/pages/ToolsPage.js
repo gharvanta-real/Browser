@@ -102,9 +102,14 @@ export class ToolsPage extends BaseComponent {
                         
                         <!-- Top Header -->
                         <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <div>
-                                <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Developer Tools & Extensions</h2>
-                                <p style="margin: 4px 0 0; font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Manage installed utilities and view browser console output logs.</p>
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <button id="tools-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                    <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                                </button>
+                                <div>
+                                    <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Developer Tools & Extensions</h2>
+                                    <p style="margin: 4px 0 0; font-size: var(--font-size-xs); color: var(--color-viewport-text-muted);">Manage installed utilities and view browser console output logs.</p>
+                                </div>
                             </div>
                             
                             <div style="display: flex; align-items: center; gap: var(--spacing-md);">
@@ -222,6 +227,10 @@ export class ToolsPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#tools-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         // Toggle Dev Mode
         const devToggle = this.querySelector('#dev-mode-toggle');
         if (devToggle) {

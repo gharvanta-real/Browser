@@ -1,4 +1,5 @@
 import { BaseComponent } from '../BaseComponent.js';
+import { BackendClient } from '../../services/BackendClient.js';
 
 export class AddressesPage extends BaseComponent {
     constructor() {
@@ -32,6 +33,57 @@ export class AddressesPage extends BaseComponent {
             newPin: profile.zip || '',
             newCountry: profile.country || 'India'
         };
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this.loadProtectedProfile();
+    }
+
+    async loadProtectedProfile() {
+        try {
+            const result = await BackendClient.getAutofillProfile();
+            if (!result?.profile) return;
+            this.applyProfile(result.profile);
+            window.AppState?.update(appState => {
+                appState.autofillProfile = result.profile;
+            });
+        } catch (error) {
+            console.warn('Autofill profile load failed:', error);
+        }
+    }
+
+    profileToAddress(profile, label = 'Primary') {
+        if (!profile?.fullName && !profile?.addressLine1) return [];
+        return [{
+            id: 1,
+            label,
+            name: profile.fullName || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            street: profile.addressLine1 || '',
+            street2: profile.addressLine2 || '',
+            city: profile.city || '',
+            state: profile.state || '',
+            pin: profile.zip || '',
+            country: profile.country || 'India'
+        }];
+    }
+
+    applyProfile(profile) {
+        const address = this.profileToAddress(profile);
+        this.setState({
+            addresses: address,
+            newName: profile.fullName || '',
+            newEmail: profile.email || '',
+            newPhone: profile.phone || '',
+            newStreet: profile.addressLine1 || '',
+            newStreet2: profile.addressLine2 || '',
+            newCity: profile.city || '',
+            newState: profile.state || '',
+            newPin: profile.zip || '',
+            newCountry: profile.country || 'India'
+        });
     }
 
     template() {
@@ -81,7 +133,12 @@ export class AddressesPage extends BaseComponent {
                     <div style="max-width: 720px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: var(--spacing-md);">
                         
                         <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Addresses & Autofill</h2>
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <button id="addresses-back-btn" class="page-back-btn" style="background: transparent; border: none; outline: none; cursor: pointer; color: var(--color-text-inactive); display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background var(--transition-fast);">
+                                    <i class="hgi-stroke hgi-arrow-left-01" style="font-size: 18px;"></i>
+                                </button>
+                                <h2 style="margin: 0; font-size: 20px; font-weight: var(--font-weight-semibold); color: var(--color-viewport-text);">Addresses & Autofill</h2>
+                            </div>
                             <button id="btn-add-address-trigger" style="background: var(--color-input-focus-border); color: #FFFFFF; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); padding: var(--spacing-sm) var(--spacing-lg); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: var(--spacing-xs);">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 Add address
@@ -183,6 +240,10 @@ export class AddressesPage extends BaseComponent {
     }
 
     afterRender() {
+        this.querySelector('#addresses-back-btn')?.addEventListener('click', () => {
+            this.navigateBack();
+        });
+
         // Search listener
         const searchInput = this.querySelector('#address-search');
         if (searchInput) {
@@ -212,7 +273,7 @@ export class AddressesPage extends BaseComponent {
         // Save address event
         const formSave = this.querySelector('#btn-add-addr-save');
         if (formSave) {
-            formSave.addEventListener('click', () => {
+            formSave.addEventListener('click', async () => {
                 const label = this.querySelector('#new-addr-label').value.trim() || 'Home';
                 const name = this.querySelector('#new-addr-name').value.trim();
                 const email = this.querySelector('#new-addr-email').value.trim();
@@ -254,10 +315,25 @@ export class AddressesPage extends BaseComponent {
                         addressLine2: street2,
                         city,
                         state,
+                    zip: pin,
+                    country
+                };
+                });
+                try {
+                    await BackendClient.saveAutofillProfile({
+                        fullName: name,
+                        email,
+                        phone,
+                        addressLine1: street,
+                        addressLine2: street2,
+                        city,
+                        state,
                         zip: pin,
                         country
-                    };
-                });
+                    });
+                } catch (error) {
+                    alert(`Address saved locally, but encrypted backend save failed: ${error.message}`);
+                }
             });
         }
 

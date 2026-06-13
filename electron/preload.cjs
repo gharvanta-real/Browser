@@ -2,17 +2,20 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('aeroNative', {
   runtime: () => ipcRenderer.invoke('aero:runtime'),
+  setTheme: (theme) => ipcRenderer.invoke('aero:set-theme', theme),
   minimize: () => ipcRenderer.invoke('aero:window:minimize'),
   toggleMaximize: () => ipcRenderer.invoke('aero:window:toggle-maximize'),
   close: () => ipcRenderer.invoke('aero:window:close'),
   dispatchGuestInput: (webContentsId, inputEvent) => ipcRenderer.invoke('aero:guest:input', webContentsId, inputEvent),
   insertGuestText: (webContentsId, text) => ipcRenderer.invoke('aero:guest:insert-text', webContentsId, text),
   loadGuestUrl: (webContentsId, url) => ipcRenderer.invoke('aero:guest:load-url', webContentsId, url),
+  getGuestAxTree: (webContentsId) => ipcRenderer.invoke('aero:guest:ax-tree', webContentsId),
   pauseDownload: (id) => ipcRenderer.invoke('aero:download:pause', id),
   resumeDownload: (id) => ipcRenderer.invoke('aero:download:resume', id),
   cancelDownload: (id) => ipcRenderer.invoke('aero:download:cancel', id),
   showDownload: (filePath) => ipcRenderer.invoke('aero:download:show', filePath),
   openDownload: (filePath) => ipcRenderer.invoke('aero:download:open', filePath),
+  clearSitePermissions: () => ipcRenderer.invoke('aero:permissions:clear'),
   confirmSensitiveAction: (payload) => ipcRenderer.invoke('aero:confirm-sensitive-action', payload),
   onDownload: (callback) => {
     const listener = (_event, payload) => callback(payload);
