@@ -24,42 +24,99 @@ export class AISidebar extends BaseComponent {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
-        // Inline formatting
+        // Inline formatting (bold, italic, code)
         escaped = escaped
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/`(.*?)`/g, '<code>$1</code>');
 
-        // Process lines for lists and paragraphs
         const lines = escaped.split('\n');
         let inList = false;
+        let listType = null; // 'ul' or 'ol'
         let formattedLines = [];
 
         lines.forEach(line => {
             const trimmed = line.trim();
-            // Match unordered lists starting with '*' or '-'
-            const listMatch = line.match(/^(\s*)[\*\-]\s+(.*)$/);
-            if (listMatch) {
-                if (!inList) {
-                    formattedLines.push('<ul style="margin: 4px 0; padding-left: 20px;">');
-                    inList = true;
+
+            // Handle horizontal rule (---)
+            if (/^---+\s*$/.test(trimmed)) {
+                if (inList) {
+                    formattedLines.push(`</${listType}>`);
+                    inList = false;
+                    listType = null;
                 }
-                formattedLines.push(`<li style="margin: 2px 0;">${listMatch[2]}</li>`);
+                formattedLines.push('<hr style="border: 0; border-top: 1px solid var(--color-border-light, #dadce0); margin: 12px 0; opacity: 0.6;">');
+                return;
+            }
+
+            // Handle blockquotes (> text)
+            const blockquoteMatch = line.match(/^(\s*)&gt;\s+(.*)$/);
+            if (blockquoteMatch) {
+                if (inList) {
+                    formattedLines.push(`</${listType}>`);
+                    inList = false;
+                    listType = null;
+                }
+                formattedLines.push(`<blockquote style="margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--color-border-light, #dadce0); color: var(--color-text-inactive); font-style: italic;">${blockquoteMatch[2]}</blockquote>`);
+                return;
+            }
+
+            // Handle Headings (H1 to H4)
+            const headingMatch = line.match(/^(\s*)(#{1,4})\s+(.*)$/);
+            if (headingMatch) {
+                if (inList) {
+                    formattedLines.push(`</${listType}>`);
+                    inList = false;
+                    listType = null;
+                }
+                const level = headingMatch[2].length;
+                const title = headingMatch[3];
+                const fontSize = level === 1 ? '1.3em' : level === 2 ? '1.15em' : level === 3 ? '1em' : '0.9em';
+                const marginTop = level === 1 ? '14px' : level === 2 ? '12px' : level === 3 ? '10px' : '8px';
+                formattedLines.push(`<h${level} style="font-size: ${fontSize}; font-weight: 600; margin: ${marginTop} 0 6px 0; color: var(--color-text-active);">${title}</h${level}>`);
+                return;
+            }
+
+            // Handle list items
+            const ulMatch = line.match(/^(\s*)[\*\-]\s+(.*)$/);
+            const olMatch = line.match(/^(\s*)\d+\.\s+(.*)$/);
+
+            if (ulMatch) {
+                if (!inList || listType !== 'ul') {
+                    if (inList) {
+                        formattedLines.push(`</${listType}>`);
+                    }
+                    formattedLines.push('<ul style="margin: 4px 0; padding-left: 18px; list-style-type: disc;">');
+                    inList = true;
+                    listType = 'ul';
+                }
+                formattedLines.push(`<li style="margin: 3px 0;">${ulMatch[2]}</li>`);
+            } else if (olMatch) {
+                if (!inList || listType !== 'ol') {
+                    if (inList) {
+                        formattedLines.push(`</${listType}>`);
+                    }
+                    formattedLines.push('<ol style="margin: 4px 0; padding-left: 18px; list-style-type: decimal;">');
+                    inList = true;
+                    listType = 'ol';
+                }
+                formattedLines.push(`<li style="margin: 3px 0;">${olMatch[2]}</li>`);
             } else {
                 if (inList) {
-                    formattedLines.push('</ul>');
+                    formattedLines.push(`</${listType}>`);
                     inList = false;
+                    listType = null;
                 }
                 if (trimmed) {
-                    formattedLines.push(`<p style="margin: 4px 0;">${trimmed}</p>`);
+                    formattedLines.push(`<p style="margin: 6px 0; line-height: 1.45;">${trimmed}</p>`);
                 } else {
-                    formattedLines.push('<div style="height: 8px;"></div>');
+                    formattedLines.push('<div style="height: 6px;"></div>');
                 }
             }
         });
 
         if (inList) {
-            formattedLines.push('</ul>');
+            formattedLines.push(`</${listType}>`);
         }
 
         return formattedLines.join('');
