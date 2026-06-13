@@ -1,0 +1,251 @@
+/* layout.css */
+@import url('./tokens.css');
+
+/* Main application window container */
+.window-frame {
+  display: grid;
+  grid-template-rows: 36px 1fr; /* Titlebar + Content body */
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--color-window-bg);
+  overflow: hidden;
+}
+
+/* 1. Titlebar (Horizontal Tabs & Windows Controls) */
+.window-titlebar {
+  -webkit-app-region: drag;
+}
+
+.window-titlebar button,
+.window-titlebar input,
+.window-titlebar browser-tabstrip,
+.win-caption-controls,
+.tab-strip-horizontal {
+  -webkit-app-region: no-drag;
+}
+
+.top-navigation-bar,
+.left-sidebar,
+.web-viewport,
+.ai-sidebar {
+  -webkit-app-region: no-drag;
+}
+
+.electron-runtime .window-frame {
+  border-radius: 0;
+}
+
+.electron-runtime .win-caption-controls {
+  display: flex;
+}
+
+.window-titlebar {
+  display: flex;
+  align-items: center; /* Center tabs vertically for a floating look */
+  background: var(--color-window-bg);
+  padding: 0 0 0 var(--spacing-md);
+  height: 36px;
+  user-select: none;
+  border-bottom: 1px solid var(--color-border-light);
+  gap: var(--spacing-md);
+  position: relative;
+}
+
+/* Horizontal tabstrip inside titlebar */
+.tab-strip-horizontal {
+  display: flex;
+  align-items: center; /* Center items vertically */
+  height: 28px;
+  margin: 4px 0;
+  border-radius: var(--border-radius-lg);
+  background: var(--color-input-bg);
+  padding: 0 var(--spacing-xs);
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none; /* Hide scrollbar for clean chrome feel */
+}
+.tab-strip-horizontal::-webkit-scrollbar {
+  display: none;
+}
+
+/* 2. Main App Content Container (Vertical flow: Toolbar → Bookmarks → Workspace) */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-window-bg);
+}
+
+/* Toolbar Navigation Bar */
+.top-navigation-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  height: 44px;
+  padding: 0 var(--spacing-md);
+  background: var(--color-toolbar-bg);
+  border: none;
+  margin: 6px 6px 0 6px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 0 var(--color-border-light);
+  transition: border-radius 0.2s ease;
+}
+
+/* Bookmarks Bar */
+.bookmarks-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 var(--spacing-md);
+  background: var(--color-toolbar-bg);
+  border: none;
+  margin: 0 6px 0 6px;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  font-size: var(--font-size-xs);
+  user-select: none;
+  z-index: 9;
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* Flex layout for Bookmarks Left */
+.bookmarks-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-inactive);
+}
+
+/* 3. Main Workspace Area (Horizontal split: Left Sidebar + Middle Viewport + AI Sidebar) */
+.workspace-layout {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  /* 6px gap from the toolbar pill above — matches side margins for consistent floating feel */
+  margin-top: 6px;
+}
+
+/* Left Navigation Sidebar Hover Trigger Zone */
+.sidebar-hover-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 12px;
+  z-index: 999;
+  background: transparent;
+}
+
+/* Left Navigation Sidebar */
+.left-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 200px;
+  background: var(--color-sidebar-bg);
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  user-select: none;
+  height: calc(100% - 8px);
+  margin-top: 4px;
+  margin-bottom: 4px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  z-index: 1000;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  border: 1px solid var(--color-border-light);
+  border-left: none;
+  box-shadow: none;
+}
+
+.sidebar-hover-zone:hover + .left-sidebar,
+.left-sidebar:hover {
+  transform: translateX(0);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Middle Viewport Container */
+.middle-viewport-container {
+  flex: 1;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Web Viewport Frame */
+.web-viewport {
+  flex: 1;
+  height: 100%;
+  background-color: var(--color-viewport-bg);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Subtle top border to visually ground the viewport */
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* AI Sidebar Companion Panel */
+.ai-sidebar {
+  width: 320px;
+  min-width: 320px;
+  height: 100%;
+  background: var(--color-toolbar-bg);
+  border-left: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--transition-normal), width var(--transition-normal);
+}
+
+/* Settings Slide-out Drawer Overlay */
+.settings-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.settings-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.settings-dialog {
+  width: 100%;
+  max-width: 680px;
+  height: 80%;
+  max-height: 520px;
+  background: var(--color-toolbar-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  overflow: hidden;
+}

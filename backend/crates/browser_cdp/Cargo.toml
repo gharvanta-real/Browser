@@ -1,0 +1,14 @@
+[package]
+name = "browser_cdp"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+browser_automation = { path = "../browser_automation" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tungstenite.workspace = true
+url.workspace = true

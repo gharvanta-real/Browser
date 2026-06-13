@@ -1,0 +1,27 @@
+[package]
+name = "browser_backend"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+agent_protocol = { path = "../agent_protocol" }
+anyhow.workspace = true
+axum.workspace = true
+browser_ai = { path = "../browser_ai" }
+browser_automation = { path = "../browser_automation" }
+browser_cdp = { path = "../browser_cdp" }
+browser_policy = { path = "../browser_policy" }
+browser_storage = { path = "../browser_storage" }
+chrono.workspace = true
+parking_lot.workspace = true
+reqwest.workspace = true
+search_core = { path = "../search_core" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true

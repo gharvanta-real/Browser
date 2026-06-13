@@ -1,0 +1,40 @@
+[workspace]
+members = [
+    "crates/agent_protocol",
+    "crates/browser_ai",
+    "crates/browser_automation",
+    "crates/browser_cdp",
+    "crates/browser_crypto",
+    "crates/browser_domain",
+    "crates/browser_policy",
+    "crates/browser_storage",
+    "crates/search_core",
+    "crates/browser_backend"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "Proprietary"
+rust-version = "1.90"
+
+[workspace.dependencies]
+anyhow = "1.0"
+axum = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusqlite = { version = "0.37", features = ["bundled"] }
+base64 = "0.22"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tempfile = "3.16"
+thiserror = "2.0"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tungstenite = "0.28"
+url = "2.5"
+uuid = { version = "1.11", features = ["serde", "v4"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }

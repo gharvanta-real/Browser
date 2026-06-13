@@ -1,0 +1,114 @@
+/* tokens.css */
+
+:root {
+  /* Strict Segoe UI Typography Configuration */
+  --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-code: Consolas, "Lucida Console", "Liberation Mono", monospace;
+  
+  /* Strict Text Size Hierarchy */
+  --font-size-xxs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-xxl: 24px;
+  
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+
+  /* Spacing Scale (Disciplined Multiples of 4px) */
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-xxl: 24px;
+
+  /* Border Radii */
+  --border-radius-xs: 2px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-pill: 9999px;
+
+  /* Transitions */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+
+  /* -----------------------------------------
+     DEFAULT LIGHT THEME COLORS
+     ----------------------------------------- */
+  --color-window-bg: #F1F2F5;          /* macOS style title bar light grey */
+  --color-sidebar-bg: #F8F9FA;         /* Clean sidebar background */
+  --color-toolbar-bg: #FFFFFF;         /* White toolbar and active tab */
+  --color-hover-bg: rgba(0, 0, 0, 0.05); /* Soft light selection hover */
+  --color-active-bg: rgba(0, 0, 0, 0.08); /* Soft active item capsule */
+  --color-border-light: #E5E7EB;       /* Very soft borders */
+  --color-border-dark: #D1D5DB;        /* Slightly darker borders */
+  --color-border-hover: #9CA3AF;
+  
+  --color-input-bg: #F1F3F4;           /* Address bar background */
+  --color-input-focus-border: #4D90FE; /* Standard active blue */
+  
+  /* Text Colors */
+  --color-text-active: #1F2937;        /* Clean charcoal active text */
+  --color-text-inactive: #4B5563;      /* Semi-active text */
+  --color-text-muted: #9CA3AF;         /* Muted grey text */
+  
+  /* Viewport Area Defaults */
+  --color-viewport-bg: var(--color-toolbar-bg);        /* Inherit page background from toolbar */
+  --color-viewport-text: #1F2937;
+  --color-viewport-text-muted: #6B7280;
+  --color-viewport-border: #E5E7EB;
+  --color-card-bg: var(--color-sidebar-bg);            /* Pure white shortcut cards & widgets */
+
+  /* UI Shadows (Subtle, clean drop shadows) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
+}
+
+/* -----------------------------------------
+   RICH CHARCOAL DARK THEME COLORS
+   ----------------------------------------- */
+.dark-theme,
+:root.dark-theme {
+  --color-window-bg: #1E2022;          /* Rich Charcoal title bar */
+  --color-sidebar-bg: #1A1C1E;         /* Darker sidebar background */
+  --color-toolbar-bg: #282A2D;         /* Dark toolbar */
+  --color-border-light: #333639;       /* Dark theme borders */
+  --color-border-dark: #242628;
+  --color-border-hover: #4C5054;
+  --color-hover-bg: rgba(255, 255, 255, 0.08); /* Soft dark selection hover */
+  --color-active-bg: rgba(255, 255, 255, 0.12); /* Soft active item capsule */
+
+  --color-input-bg: #1E2022;           /* Address bar input background */
+  --color-input-focus-border: #4D90FE;
+
+  /* Dark Theme Text Colors */
+  --color-text-active: #F1F3F4;        /* Main light text */
+  --color-text-inactive: #9AA0A6;      /* Inactive text */
+  --color-text-muted: #70757A;         /* Muted text */
+
+  /* Viewport Area Dark Defaults */
+  --color-viewport-bg: var(--color-toolbar-bg);        /* Inherit page background from toolbar */
+  --color-viewport-text: #F1F3F4;
+  --color-viewport-text-muted: #9AA0A6;
+  --color-viewport-border: #333639;
+  --color-card-bg: var(--color-sidebar-bg);            /* Dark shortcut cards & widgets */
+
+  /* Dark Theme Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}

@@ -1,0 +1,54 @@
+# Project Memory: Browser (AI-Native, Ultra-Fast Windows Browser)
+
+This is a production-grade, enterprise-ready desktop browser project. It must **NEVER** be treated as a college project, toy mockup, or simple web wrapper. All design decisions, code implementation, and architecture plans must reflect the highest level of software engineering discipline.
+
+---
+
+## 1. System Architecture & Tech Stack
+
+The browser is structured as a multi-process Windows application:
+1. **Browser Shell & Core:** C++ fork of Chromium (debloated, optimized, with custom process/GC tuning).
+2. **AI Agent Runtime (Isolated Process):** High-performance Rust binary running independently of the browser rendering pipeline.
+3. **Local Inference Engine:** Llama.cpp (DirectML backend for cross-vendor GPU acceleration) and ONNX Runtime running quantized GGUF models.
+4. **Inter-Process Communication (IPC):** Safe, low-latency Windows Named Pipes carrying Protocol Buffers (Protobuf).
+5. **AI Interaction:** Chrome DevTools Protocol (CDP) via local loopback. Clicks and inputs are dispatched using **real OS-level events** (CDP `Input.dispatchMouseEvent`/`KeyEvent`), never DOM scripting injection.
+6. **UI Shell Layer:** Native C++ WinUI 3 with Windows Hello biometrics integration, plus modular WebUI components for tab dashboard/sidebar systems.
+
+---
+
+## 2. Code Quality & Structural Guidelines
+
+* **Strict Type Safety & modulatity:** Use clean, object-oriented or functional paradigms with strict types (Rust/TypeScript). If writing Javascript, utilize modern ES Modules (ESM) with strict encapsulation.
+* **No "College Project" Practices:** 
+  * Avoid raw, inline styles. Styling must follow the 4-layer CSS Design Tokens structure (Tokens → Base → Layout → Components).
+  * No lazy, unhandled promises or empty catch blocks. Always log errors, use recovery paths, and inform the UI layer via explicit channels.
+  * No mock-up functions in codebase unless explicitly isolated inside the visual simulator shell.
+  * Keep components decoupled. They must communicate only via unidirectional data flow or event brokers.
+
+---
+
+## 3. UI/UX & Styling Standards
+
+* **Visual Polish:** Sleek modern aesthetics. Use HSL dynamic dark modes, subtle gradients, and Fluent-style glassmorphism (`backdrop-filter`).
+* **Design Systems Discipline:**
+  * **Layer 1 (Tokens):** All variables (`--color-accent`, `--font-main`, `--spacing-md`, etc.) must reside here.
+  * **Layer 2 (Base):** Normalizations and resets.
+  * **Layer 3 (Layout):** Frame structure, grid systems, panels.
+  * **Layer 4 (Components):** Encapsulated styles for each visual component.
+* **Micro-interactions:** Any state change (tab suspend, network loading, AI token streaming) must have a corresponding CSS keyframe or transition effect.
+
+---
+
+## 4. Security & Safety Principles
+
+* **Permission Gates:** Strictly enforce the Tier 0-5 permission boundaries defined in the PRD.
+  * **Tier 0-2 (Read/Navigate/Non-sensitive):** Automated.
+  * **Tier 3-5 (Sensitive/Consequential/Transactions):** Mandate biometric validation (Windows Hello) and non-bypassable Confirmation Modal UI.
+* **Process Safety:** The Agent Runtime must never consume memory or CPU resources that starve the browser's main render or UI thread.
+
+---
+
+## 5. Instructions for AI Coding Assistants
+* Always write production-ready code. Do not write placeholder comments like `// TODO: Implement later`.
+* If refactoring code, preserve all existing comment blocks and maintain strict functional parity unless requested.
+* Keep files clean and modular. A single component file should not exceed 300-400 lines; split logic into helper modules when necessary.

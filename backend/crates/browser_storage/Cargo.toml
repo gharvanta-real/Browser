@@ -1,0 +1,22 @@
+[package]
+name = "browser_storage"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+browser_ai = { path = "../browser_ai" }
+browser_crypto = { path = "../browser_crypto" }
+browser_policy = { path = "../browser_policy" }
+rusqlite.workspace = true
+search_core = { path = "../search_core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+agent_protocol = { path = "../agent_protocol" }
+chrono.workspace = true
+tempfile.workspace = true
+uuid.workspace = true

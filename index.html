@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aero Browser</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Hugeicons Stroke Rounded Icon Library CDN -->
+    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
+    
+    <!-- 4-Layer CSS Design System + Animations -->
+    <link rel="stylesheet" href="src/styles/tokens.css">
+    <link rel="stylesheet" href="src/styles/base.css">
+    <link rel="stylesheet" href="src/styles/layout.css">
+    <link rel="stylesheet" href="src/styles/components.css">
+    <link rel="stylesheet" href="src/styles/animations.css">
+</head>
+<body>
+    <!-- Main Window Frame (Aero Style) -->
+    <div class="window-frame">
+        
+        <!-- Top Title Bar (Tabs & Windows Controls) -->
+        <header class="window-titlebar">
+            <!-- Brand title (visible only in vertical tab mode) -->
+            <div id="vertical-brand-title" style="display: none; align-items: center; gap: var(--spacing-sm); font-family: var(--font-ui); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-text-inactive); padding-left: var(--spacing-sm); user-select: none;">
+                <span class="logo-icon" style="width: 14px; height: 14px; background: var(--color-input-focus-border); border-radius: 3px; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 9px; font-weight: 900;">A</span>
+                <span>Aero Browser</span>
+            </div>
+
+            <!-- Horizontal Tabstrip -->
+            <browser-tabstrip id="horizontal-tabs-container" class="tab-strip-horizontal" layout="horizontal"></browser-tabstrip>
+            
+            <!-- Windows style close, minimize, maximize controls -->
+            <div class="win-caption-controls">
+                <button class="win-btn win-min" aria-label="Minimize" onclick="alert('Minimize Window (Mock Action)')">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"><line x1="1" y1="5" x2="9" y2="5" stroke-width="1.2"></line></svg>
+                </button>
+                <button class="win-btn win-max" aria-label="Maximize" onclick="alert('Maximize Window (Mock Action)')">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"><rect x="1.5" y="1.5" width="7" height="7" stroke-width="1.2"></rect></svg>
+                </button>
+                <button class="win-btn win-close" aria-label="Close" onclick="alert('Close Window (Mock Action)')">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke-width="1.2"></line><line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke-width="1.2"></line></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace App Container -->
+        <div class="app-container">
+            <!-- Navigation Toolbar (Back, Forward, Refresh, Omnibox, Actions) -->
+            <browser-omnibox class="top-navigation-bar" id="browser-nav"></browser-omnibox>
+
+            <!-- Bookmarks Bar (Mock items like Product, Marketing, Notion, Figma) -->
+            <div class="bookmarks-bar" id="bookmarks-shelf">
+                <div class="bookmarks-left">
+                    <!-- Product Folder -->
+                    <div class="bookmark-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.95;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        Product
+                    </div>
+                    <!-- Marketing Folder -->
+                    <div class="bookmark-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34A853" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.95;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        Marketing
+                    </div>
+                    <!-- Inspiration Folder -->
+                    <div class="bookmark-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A259FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.95;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        Inspiration
+                    </div>
+                    <!-- Aero Dashboard -->
+                    <div class="bookmark-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EA4335" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.95;"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                        Aero Dashboard
+                    </div>
+                    <!-- Notion -->
+                    <div class="bookmark-item">
+                        <img src="https://www.google.com/s2/favicons?sz=32&domain=notion.so" alt="Notion" />
+                        Notion
+                    </div>
+                    <!-- Figma -->
+                    <div class="bookmark-item">
+                        <img src="https://www.google.com/s2/favicons?sz=32&domain=figma.com" alt="Figma" />
+                        Figma
+                    </div>
+                    <!-- Linear -->
+                    <div class="bookmark-item">
+                        <img src="https://www.google.com/s2/favicons?sz=32&domain=linear.app" alt="Linear" />
+                        Linear
+                    </div>
+                </div>
+                <div class="bookmarks-right bookmark-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.75;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    All Bookmarks
+                </div>
+            </div>
+
+            <!-- Workspace Layout -->
+            <div class="workspace-layout">
+                <!-- Vertical Tabstrip Sidebar (Hidden by default) -->
+                <browser-tabstrip id="vertical-tabs-container" layout="vertical"></browser-tabstrip>
+                
+                <!-- Hover trigger zone for auto-revealing left sidebar -->
+                <div class="sidebar-hover-zone" id="aero-sidebar-hover-zone"></div>
+
+                <!-- Left Navigation Sidebar (Aero Style) -->
+                <aside class="left-sidebar" id="aero-left-sidebar">
+                    
+                    <!-- Dropdown Brand Toggle -->
+                    <div class="brand-dropdown" style="display: flex; align-items: center; justify-content: space-between; padding: var(--spacing-sm) var(--spacing-md); background: rgba(0, 0, 0, 0.03); border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md); font-weight: var(--font-weight-bold); font-size: var(--font-size-sm); color: var(--color-text-active); cursor: pointer; user-select: none;">
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <!-- Clean square 'A' logo matching Mockup -->
+                            <span class="logo-icon" style="width: 14px; height: 14px; background: #000000; border-radius: 3px; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 9px; font-weight: 900; font-family: var(--font-ui);">A</span>
+                            <span>Aero</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                            <i class="hgi-stroke hgi-arrow-down-01" style="font-size: 10px; color: var(--color-text-inactive);"></i>
+                            <!-- Edit/Compose icon on the right side of sidebar header -->
+                            <i class="hgi-stroke hgi-edit-02" style="font-size: 12px; color: var(--color-text-inactive);"></i>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Items List -->
+                    <nav class="left-sidebar-nav" style="display: flex; flex-direction: column; gap: 2px; margin-top: var(--spacing-sm);">
+                        <div class="sidebar-item active" data-page="newtab">
+                            <i class="hgi-stroke hgi-home-01"></i>
+                            New Tab
+                        </div>
+                        <div class="sidebar-item" data-page="search">
+                            <i class="hgi-stroke hgi-search-01"></i>
+                            Search
+                        </div>
+                        <div class="sidebar-item" data-page="workspaces">
+                            <i class="hgi-stroke hgi-grid-view"></i>
+                            Workspaces
+                        </div>
+                        <div class="sidebar-item" data-page="aisetup">
+                            <i class="hgi-stroke hgi-chat-bot"></i>
+                            AI Setup
+                        </div>
+                    </nav>
+
+                    <div style="border-top: 1px solid var(--color-border-light); margin: var(--spacing-xs) 0;"></div>
+
+                    <nav class="left-sidebar-nav" style="display: flex; flex-direction: column; gap: 2px;">
+                        <div class="sidebar-item" data-page="history">
+                            <i class="hgi-stroke hgi-clock-01"></i>
+                            History
+                        </div>
+                        <div class="sidebar-item" data-page="bookmarks">
+                            <i class="hgi-stroke hgi-star"></i>
+                            Bookmarks
+                        </div>
+                        <div class="sidebar-item" data-page="readinglist">
+                            <i class="hgi-stroke hgi-book-open-01"></i>
+                            Reading List
+                        </div>
+                        <div class="sidebar-item" data-page="downloads">
+                            <i class="hgi-stroke hgi-download-01"></i>
+                            Downloads
+                        </div>
+                    </nav>
+
+                    <div style="border-top: 1px solid var(--color-border-light); margin: var(--spacing-xs) 0;"></div>
+
+                    <!-- Custom Categories -->
+                    <div id="sidebar-workspaces-list" style="display: flex; flex-direction: column; gap: 2px;"></div>
+
+                    <!-- Settings Button at the bottom -->
+                    <div class="sidebar-item settings-trigger" style="margin-top: auto;">
+                        <i class="hgi-stroke hgi-settings-01"></i>
+                        Settings
+                    </div>
+
+                </aside>
+
+                <!-- Middle viewport area + AI sidebar -->
+                <div class="middle-viewport-container">
+                    <browser-viewport class="web-viewport" id="main-viewport"></browser-viewport>
+                    <browser-sidebar class="ai-sidebar" id="ai-sidebar"></browser-sidebar>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Slide-out Drawer Overlay -->
+        <browser-settings class="settings-overlay" id="settings-drawer"></browser-settings>
+
+    </div>
+
+    <!-- Application Script Bootstrapper -->
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
