@@ -4,6 +4,8 @@ import { Omnibox } from './components/Omnibox.js';
 import { AISidebar } from './components/AISidebar.js';
 import { WebViewport } from './components/WebViewport.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
+import { FlightComparisonWidget, PriceTrendWidget, SecurityDetailsWidget } from './components/GenerativeWidgets.js';
+
 
 // Import System Page Components
 import { SettingsPage } from './components/pages/SettingsPage.js';
@@ -348,6 +350,10 @@ customElements.define('browser-omnibox', Omnibox);
 customElements.define('browser-sidebar', AISidebar);
 customElements.define('browser-viewport', WebViewport);
 customElements.define('browser-settings', SettingsPanel);
+customElements.define('flight-comparison-widget', FlightComparisonWidget);
+customElements.define('price-trend-widget', PriceTrendWidget);
+customElements.define('security-details-widget', SecurityDetailsWidget);
+
 
 // Register System Page Elements
 customElements.define('browser-settings-page', SettingsPage);

@@ -77,6 +77,7 @@ export class WebViewport extends BaseComponent {
         };
         document.addEventListener('aero-capture-active-page', this._capturePageHandler);
         window.AeroCaptureActivePage = () => this.captureActivePageSnapshot();
+        window.AeroCaptureTabSnapshot = (tabId) => this.captureTabSnapshot(tabId);
 
         this._contextMenuHandler = (e) => {
             const isInsideWebview = e.target.closest('webview, .chromium-webview-stack');
@@ -102,6 +103,9 @@ export class WebViewport extends BaseComponent {
         }
         if (window.AeroCaptureActivePage) {
             delete window.AeroCaptureActivePage;
+        }
+        if (window.AeroCaptureTabSnapshot) {
+            delete window.AeroCaptureTabSnapshot;
         }
         if (window.AeroExecuteBrowserCommand) {
             delete window.AeroExecuteBrowserCommand;
@@ -927,13 +931,16 @@ export class WebViewport extends BaseComponent {
     }
 
     async captureActivePageSnapshot() {
-        const activeId = window.AppState?.activeTabId;
-        const activeTab = window.AppState?.tabs?.find(tab => tab.id === activeId);
-        const webview = this.querySelector(`.chromium-webview[data-tab-id="${activeId}"]`) || window.AeroActiveWebview;
+        return this.captureTabSnapshot(window.AppState?.activeTabId);
+    }
+
+    async captureTabSnapshot(tabId) {
+        const targetTab = window.AppState?.tabs?.find(tab => tab.id === tabId);
+        const webview = this.querySelector(`.chromium-webview[data-tab-id="${tabId}"]`) || (tabId === window.AppState?.activeTabId ? window.AeroActiveWebview : null);
         if (window.AppState?.aiAllowPageReading === false) {
             return {
-                url: activeTab?.url || '',
-                title: activeTab?.title || 'Active page',
+                url: targetTab?.url || '',
+                title: targetTab?.title || 'Page context',
                 text: '',
                 headings: [],
                 links: [],
@@ -944,7 +951,7 @@ export class WebViewport extends BaseComponent {
             };
         }
 
-        if (webview && this.shouldUseNativeWebview(activeTab?.url) && typeof webview.executeJavaScript === 'function') {
+        if (webview && this.shouldUseNativeWebview(targetTab?.url) && typeof webview.executeJavaScript === 'function') {
             try {
                 const domSnapshot = await webview.executeJavaScript(`(() => {
                     const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 8000);
@@ -1040,8 +1047,8 @@ export class WebViewport extends BaseComponent {
                 return this.mergeNativeAxSnapshot(domSnapshot, axSnapshot);
             } catch (error) {
                 return {
-                    url: activeTab?.url || '',
-                    title: activeTab?.title || 'Active page',
+                    url: targetTab?.url || '',
+                    title: targetTab?.title || 'Page context',
                     text: '',
                     headings: [],
                     links: [],
@@ -1052,9 +1059,9 @@ export class WebViewport extends BaseComponent {
 
         const activeRoot = this.querySelector('#web-content-scroll');
         return {
-            url: activeTab?.url || '',
-            title: activeTab?.title || 'Active page',
-            text: (activeRoot?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 8000),
+            url: targetTab?.url || '',
+            title: targetTab?.title || 'Page context',
+            text: (activeRoot?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 8000),
             headings: Array.from(this.querySelectorAll('h1,h2,h3')).slice(0, 20).map(node => ({
                 level: node.tagName.toLowerCase(),
                 text: (node.innerText || '').trim().slice(0, 180)

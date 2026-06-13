@@ -7,9 +7,11 @@ export class AISidebar extends BaseComponent {
         this.isThinking = false;
         this.activeTaskIndex = -1;
         this.simulatedTasks = [];
+        this.backgroundTasks = [];
         this.state = {
             ...this.state,
-            isMoreMenuOpen: false
+            isMoreMenuOpen: false,
+            backgroundTasks: []
         };
         this.lastMoreMenuOpenState = false;
     }
@@ -63,6 +65,194 @@ export class AISidebar extends BaseComponent {
         return formattedLines.join('');
     }
 
+    renderWidget(widget) {
+        if (!widget) return '';
+        if (widget.type === 'flights') {
+            return `<flight-comparison-widget flights='${JSON.stringify(widget.data)}'></flight-comparison-widget>`;
+        }
+        if (widget.type === 'price_trend') {
+            return `<price-trend-widget trend="${widget.data.trend}" current="${widget.data.currentPrice}" history='${JSON.stringify(widget.data.history)}'></price-trend-widget>`;
+        }
+        if (widget.type === 'security') {
+            return `<security-details-widget domain="${widget.data.domain}" safety="${widget.data.safety}" trackers="${widget.data.trackers}"></security-details-widget>`;
+        }
+        return '';
+    }
+
+    renderBackgroundQueue() {
+        const queue = this.state.backgroundTasks || [];
+        if (queue.length === 0) return '';
+        return `
+            <div class="ai-background-queue" style="padding: 10px var(--spacing-md); background: rgba(77, 144, 254, 0.05); border-bottom: 1px solid var(--color-border-light); font-family: var(--font-ui); display: flex; flex-direction: column; gap: var(--spacing-xs);">
+                <div style="font-size: 10px; font-weight: 600; color: var(--color-input-focus-border); display: flex; align-items: center; justify-content: space-between;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <i class="hgi-stroke hgi-processor spin-animation" style="font-size: 11px;"></i> Background Agents Active
+                    </span>
+                    <span style="font-size: 9px; background: rgba(77, 144, 254, 0.1); padding: 1px 6px; border-radius: 4px; color: var(--color-input-focus-border); font-weight: 600;">${queue.length} running</span>
+                </div>
+                ${queue.map(task => `
+                    <div style="display: flex; flex-direction: column; gap: 2px; background: var(--color-viewport-bg); border: 1px solid var(--color-border-light); border-radius: var(--border-radius-sm); padding: 6px 8px; font-size: 10px; width: 100%; box-sizing: border-box;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-weight: 500;">
+                            <span style="color: var(--color-text-active);">${task.goal.length > 32 ? task.goal.slice(0, 32) + '...' : task.goal}</span>
+                            <span style="color: var(--color-input-focus-border); font-weight: 600;">${task.progress}%</span>
+                        </div>
+                        <div style="width: 100%; height: 3px; background: var(--color-border-light); border-radius: 2px; overflow: hidden; margin: 2px 0; position: relative;">
+                            <div style="width: ${task.progress}%; height: 100%; background: var(--color-input-focus-border); border-radius: 2px; transition: width 0.3s ease;"></div>
+                        </div>
+                        <span style="color: var(--color-text-inactive); font-size: 9px;">Step: ${task.currentStep || 'Initializing'}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    runBackgroundFlightsDemo() {
+        const taskId = `task-${Date.now()}`;
+        const taskObj = {
+            id: taskId,
+            goal: 'Find Delhi to Tokyo flights (Background)',
+            progress: 0,
+            currentStep: 'Preparing headless target environment'
+        };
+
+        window.AppState.update(state => {
+            state.isAiStreaming = false;
+            state.taskLogs = [];
+        });
+
+        if (!this.state.backgroundTasks) this.state.backgroundTasks = [];
+        const nextQueue = [...this.state.backgroundTasks, taskObj];
+        this.setState({ backgroundTasks: nextQueue });
+
+        const steps = [
+            { progress: 15, step: 'Resolving flights.nifty.com domain IP' },
+            { progress: 35, step: 'Injecting search parameters: DELHI -> TOKYO' },
+            { progress: 60, step: 'Parsing travel deal DOM structures asynchronously' },
+            { progress: 85, step: 'Compiling best fare structures' },
+            { progress: 100, step: 'Finalizing context payload' }
+        ];
+
+        let idx = 0;
+        const interval = setInterval(() => {
+            if (idx < steps.length) {
+                const current = steps[idx];
+                const updatedQueue = (this.state.backgroundTasks || []).map(t => {
+                    if (t.id === taskId) {
+                        return { ...t, progress: current.progress, currentStep: current.step };
+                    }
+                    return t;
+                });
+                this.setState({ backgroundTasks: updatedQueue });
+                idx++;
+            } else {
+                clearInterval(interval);
+                const filteredQueue = (this.state.backgroundTasks || []).filter(t => t.id !== taskId);
+                this.setState({ backgroundTasks: filteredQueue });
+
+                window.AppState.update(state => {
+                    state.chatHistory.push({
+                        sender: 'ai',
+                        text: `⚡ **Background Agent Task Complete:** I searched flights in a background tab context while you browsed. Here are the Tokyo deals:`,
+                        widget: {
+                            type: 'flights',
+                            data: [
+                                { airline: 'Japan Airlines', code: 'JL-740', duration: '7h 50m', price: '₹58,400', stops: 'Nonstop' },
+                                { airline: 'Air Asia', code: 'D7-182', duration: '9h 15m', price: '₹32,100', stops: '1 stop' },
+                                { airline: 'VietJet Air', code: 'VJ-972', duration: '11h 20m', price: '₹28,900', stops: '1 stop' }
+                            ]
+                        }
+                    });
+                });
+            }
+        }, 1200);
+    }
+
+    resolveTabMentions(text) {
+        const matches = [...text.matchAll(/@(\w+[\-\w]*)/g)];
+        if (!matches.length) return [];
+        
+        const tabs = this.state.tabs || [];
+        const resolved = [];
+        
+        matches.forEach(match => {
+            const ref = match[1].toLowerCase();
+            let tab = tabs.find(t => t.id.toLowerCase() === ref);
+            
+            if (!tab && /^\d+$/.test(ref)) {
+                const idx = parseInt(ref, 10) - 1;
+                if (idx >= 0 && idx < tabs.length) {
+                    tab = tabs[idx];
+                }
+            }
+            
+            if (!tab) {
+                tab = tabs.find(t => 
+                    (t.title && t.title.toLowerCase().includes(ref)) || 
+                    (t.url && t.url.toLowerCase().includes(ref))
+                );
+            }
+            
+            if (tab) {
+                resolved.push(tab);
+            }
+        });
+        
+        return resolved;
+    }
+
+    updateAttachedTabsIndicator() {
+        const input = this.querySelector('#ai-chat-input');
+        const domainContext = this.querySelector('.ai-context-domain');
+        if (!input || !domainContext) return;
+        
+        const val = input.value;
+        const resolved = this.resolveTabMentions(val);
+        
+        let attachedContainer = this.querySelector('.ai-attached-tabs');
+        if (!attachedContainer) {
+            attachedContainer = document.createElement('div');
+            attachedContainer.className = 'ai-attached-tabs';
+            attachedContainer.style = 'display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px 8px; font-size: 10px; color: var(--color-input-focus-border); font-family: var(--font-ui);';
+            domainContext.parentNode.insertBefore(attachedContainer, domainContext.nextSibling);
+        }
+        
+        if (resolved.length > 0) {
+            attachedContainer.style.display = 'flex';
+            attachedContainer.innerHTML = `
+                <span style="color: var(--color-text-inactive); margin-right: 4px; display: inline-flex; align-items: center; gap: 2px;">
+                    <i class="hgi-stroke hgi-attachment" style="font-size: 11px;"></i> Context tabs:
+                </span>
+                ${resolved.map(tab => `
+                    <span style="background: rgba(77, 144, 254, 0.1); border: 1px solid rgba(77, 144, 254, 0.25); border-radius: 4px; padding: 1px 6px; font-weight: 500;">
+                        @${tab.id.replace('tab-', '')} (${tab.title.length > 15 ? tab.title.slice(0, 15) + '...' : tab.title})
+                    </span>
+                `).join('')}
+            `;
+        } else {
+            attachedContainer.style.display = 'none';
+            attachedContainer.innerHTML = '';
+        }
+    }
+
+    handleFlightsBookingTrigger(flight) {
+        window.AppState.update(state => {
+            state.chatHistory.push({
+                sender: 'ai',
+                text: `I have selected the flight **${flight.airline} (${flight.code})** for **${flight.price}**. Please authorize the payment booking using Windows Hello biometric gate:`,
+                card: {
+                    tier: 4,
+                    actionDescription: `Autofill payment details and book ${flight.airline} flight for ${flight.price}.`,
+                    details: [
+                        { label: 'Passenger', val: 'Rohan Sharma' },
+                        { label: 'Flight', val: `${flight.airline} ${flight.code}` },
+                        { label: 'Amount Due', val: flight.price },
+                        { label: 'Funding Source', val: 'HDFC Credit Card ending in 4082' }
+                    ]
+                }
+            });
+        });
+    }
+
     renderActivityStream(logs = [], includeWrapper = true) {
         const body = `
             <div class="activity-stream-header">
@@ -107,8 +297,25 @@ export class AISidebar extends BaseComponent {
             .replace(/^Running fill/i, 'Typing into field')
             .replace(/^Running key_press/i, 'Pressing key')
             .replace(/^Running scroll/i, 'Scrolling page')
+            .replace(/^Running wait/i, 'Waiting')
+            .replace(/^Running (\w+)/i, 'Running $1')
             .replace(/^Executed open_page through native browser input \(verified\)/i, 'Page changed')
             .replace(/^Executed open_page through native browser input \(uncertain\)/i, 'Opened, waiting to verify')
+            .replace(/^Executed click through native browser input \(verified\)/i, 'Clicked target')
+            .replace(/^Executed click through native browser input \(uncertain\)/i, 'Clicked, verifying page')
+            .replace(/^Executed fill through native browser input \(verified\)/i, 'Field filled')
+            .replace(/^Executed fill through native browser input \(uncertain\)/i, 'Text entered, verifying input')
+            .replace(/^Executed key_press through native browser input \(verified\)/i, 'Key pressed')
+            .replace(/^Executed key_press through native browser input \(uncertain\)/i, 'Key pressed, verifying')
+            .replace(/^Executed scroll through native browser input \(verified\)/i, 'Page scrolled')
+            .replace(/^Executed scroll through native browser input \(uncertain\)/i, 'Scrolling, verifying')
+            .replace(/^Executed (\w+) through native browser input \(verified\)/i, '$1 completed successfully')
+            .replace(/^Executed (\w+) through native browser input \(uncertain\)/i, '$1 action executed, verifying page')
+            .replace(/^Resolved "([^"]*)" to \w+ "([^"]*)" at \d+,\d+/i, 'Located: "$2"')
+            .replace(/^Resolved "([^"]*)" to \w+ "([^"]*)"/i, 'Located: "$2"')
+            .replace(/^Denied (\w+): user cancelled native confirmation/i, 'Action cancelled: Confirmation declined')
+            .replace(/^Blocked (\w+): (.+)$/i, 'Blocked action: $2')
+            .replace(/^Command failed: (.+)$/i, 'Error: $1')
             .replace(/^Planned \d+ action for open\/navigate\./i, 'Planned navigation')
             .replace(/^Planned \d+ direct page action.*$/i, 'Resolved from visible page')
             .replace(/^Found visible target:\s*/i, 'Target: ')
@@ -150,6 +357,12 @@ export class AISidebar extends BaseComponent {
         // Listen for flights demo triggered from omnibox suggestion
         document.addEventListener('trigger-flights-demo', this._triggerFlightsDemoHandler);
 
+        this._flightsBookingHandler = (e) => {
+            const flight = e.detail?.flight;
+            this.handleFlightsBookingTrigger(flight);
+        };
+        this.addEventListener('trigger-flights-booking', this._flightsBookingHandler);
+
         super.connectedCallback();
     }
 
@@ -162,6 +375,9 @@ export class AISidebar extends BaseComponent {
         }
         if (this._triggerFlightsDemoHandler) {
             document.removeEventListener('trigger-flights-demo', this._triggerFlightsDemoHandler);
+        }
+        if (this._flightsBookingHandler) {
+            this.removeEventListener('trigger-flights-booking', this._flightsBookingHandler);
         }
         super.disconnectedCallback();
     }
@@ -237,16 +453,14 @@ export class AISidebar extends BaseComponent {
                             const formattedText = this.formatMessageText(msg.text);
                             const existingCard = chatMessageEl.querySelector('.confirmation-card');
                             
-                            // Re-evaluate innerHTML but ignore cards
-                            const textPartOnly = chatMessageEl.innerHTML.split('<div class="confirmation-card"')[0].trim();
+                            const textPartOnly = chatMessageEl.innerHTML.split(/<div class="confirmation-card"|<flight-comparison-widget|<price-trend-widget|<security-details-widget/i)[0].trim();
                             
-                            // We compare formattedText (which has p/ul tags) with textPartOnly
                             if (textPartOnly !== formattedText) {
                                 if (existingCard) {
-                                    chatMessageEl.innerHTML = formattedText;
+                                    chatMessageEl.innerHTML = `${formattedText}${msg.widget ? this.renderWidget(msg.widget) : ''}`;
                                     chatMessageEl.appendChild(existingCard);
                                 } else {
-                                    chatMessageEl.innerHTML = `${formattedText}${msg.card ? this.renderConfirmationCard(msg.card) : ''}`;
+                                    chatMessageEl.innerHTML = `${formattedText}${msg.widget ? this.renderWidget(msg.widget) : ''}${msg.card ? this.renderConfirmationCard(msg.card) : ''}`;
                                     if (msg.card) {
                                         this.bindConfirmationCardListeners();
                                     }
@@ -260,6 +474,7 @@ export class AISidebar extends BaseComponent {
                         wrapper.innerHTML = `
                             <div class="chat-message">
                                 ${this.formatMessageText(msg.text || '')}
+                                ${msg.widget ? this.renderWidget(msg.widget) : ''}
                                 ${msg.card ? this.renderConfirmationCard(msg.card) : ''}
                             </div>
                         `;
@@ -500,6 +715,7 @@ export class AISidebar extends BaseComponent {
                     <div class="chat-message-wrapper ${isAi ? 'ai-msg' : 'user-msg'}">
                         <div class="chat-message">
                             ${this.formatMessageText(msg.text)}
+                            ${msg.widget ? this.renderWidget(msg.widget) : ''}
                             ${msg.card ? this.renderConfirmationCard(msg.card) : ''}
                         </div>
                     </div>
@@ -538,6 +754,9 @@ export class AISidebar extends BaseComponent {
                     ` : ''}
                 </div>
             </div>
+            
+            <!-- Background Queue Panel -->
+            ${this.renderBackgroundQueue()}
 
             <!-- Chat Messages Scroll Area / Welcome Screen -->
             ${isWelcomeState ? `
@@ -572,6 +791,10 @@ export class AISidebar extends BaseComponent {
                     <div class="ai-dropdown-item cmd-item" data-cmd="/flights">
                         <i class="hgi-stroke hgi-airplane-01"></i>
                         <span>/flights - Find Delhi to Tokyo flights</span>
+                    </div>
+                    <div class="ai-dropdown-item cmd-item" data-cmd="/security">
+                        <i class="hgi-stroke hgi-shield-01"></i>
+                        <span>/security - Scan active page security</span>
                     </div>
                     <div class="ai-dropdown-item cmd-item" data-cmd="/help">
                         <i class="hgi-stroke hgi-help-circle"></i>
@@ -977,6 +1200,7 @@ export class AISidebar extends BaseComponent {
             input.addEventListener('input', () => {
                 input.style.height = 'auto';
                 input.style.height = (input.scrollHeight - 10) + 'px';
+                this.updateAttachedTabsIndicator();
             });
 
             input.addEventListener('keydown', (e) => {
@@ -1050,6 +1274,12 @@ export class AISidebar extends BaseComponent {
         const cmdPopover = this.querySelector('#ai-cmd-popover');
         if (cmdPopover) cmdPopover.style.display = 'none';
 
+        const attachedContainer = this.querySelector('.ai-attached-tabs');
+        if (attachedContainer) {
+            attachedContainer.style.display = 'none';
+            attachedContainer.innerHTML = '';
+        }
+
         // Reset web search button color & state in the DOM & local state
         if (isWebSearch) {
             this.state.isWebSearchActive = false;
@@ -1068,6 +1298,8 @@ export class AISidebar extends BaseComponent {
                 this.runSummarizeDemo();
             } else if (lowerVal === '/flights' || lowerVal.includes('flight') || lowerVal.includes('tokyo') || lowerVal.includes('book')) {
                 this.runFlightsDemo();
+            } else if (lowerVal === '/security' || lowerVal.includes('security') || lowerVal.includes('safety') || lowerVal.includes('scan')) {
+                this.runSecurityScanDemo();
             } else if (lowerVal === '/help' || lowerVal.includes('help') || lowerVal.includes('shortcuts')) {
                 this.runHelpDemo();
             } else {
@@ -1767,25 +1999,84 @@ export class AISidebar extends BaseComponent {
                 this.taskInterval = null;
                 window.AppState.update(state => {
                     state.isAiStreaming = false;
-                    state.taskLogs[state.taskLogs.length - 1].status = 'warning';
+                    state.taskLogs = [];
                     
                     state.chatHistory.push({
                         sender: 'ai',
-                        text: 'I have compiled the details and navigated to the checkout page. To proceed with the booking, please approve the payment autofill:',
-                        card: {
-                            tier: 4,
-                            actionDescription: 'Autofill saved payment card details and submit the booking request for ₹32,100.',
-                            details: [
-                                { label: 'Passenger', val: 'Rohan Sharma' },
-                                { label: 'Flight', val: 'Air Asia D7-182 (DEL -> NRT)' },
-                                { label: 'Amount Due', val: '₹32,100' },
-                                { label: 'Funding Source', val: 'HDFC Credit Card ending in 4082' }
+                        text: 'I found the following flight options for Delhi to Tokyo. Select a flight to book:',
+                        widget: {
+                            type: 'flights',
+                            data: [
+                                { airline: 'Air Asia', code: 'D7-182', duration: '9h 15m', price: '₹32,100', stops: '1 stop' },
+                                { airline: 'Japan Airlines', code: 'JL-740', duration: '7h 50m', price: '₹58,400', stops: 'Nonstop' },
+                                { airline: 'VietJet Air', code: 'VJ-972', duration: '11h 20m', price: '₹28,900', stops: '1 stop' }
                             ]
                         }
                     });
                 });
             }
         }, 1500);
+    }
+
+    runSecurityScanDemo() {
+        this.simulatedTasks = [
+            { text: 'Analyzing SSL certificate handshake and TLS version', status: 'success' },
+            { text: 'Checking domain records against threat intelligence lists', status: 'success' },
+            { text: 'Scanning page content scripts for third-party trackers', status: 'success' }
+        ];
+
+        window.AppState.update(state => {
+            state.isAiStreaming = true;
+            state.taskLogs = [];
+        });
+
+        let currentIdx = 0;
+        this.taskInterval = setInterval(() => {
+            if (window.AppState?.aiCancelRequested) {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                return;
+            }
+            if (currentIdx < this.simulatedTasks.length) {
+                const step = this.simulatedTasks[currentIdx];
+                window.AppState.update(state => {
+                    if (state.taskLogs.length > 0) {
+                        state.taskLogs[state.taskLogs.length - 1].status = 'success';
+                    }
+                    state.taskLogs.push({ text: step.text, status: step.status });
+                });
+                currentIdx++;
+            } else {
+                clearInterval(this.taskInterval);
+                this.taskInterval = null;
+                
+                const tabs = this.state.tabs || [];
+                const activeTab = tabs.find(t => t.id === this.state.activeTabId);
+                let domain = 'localhost';
+                if (activeTab && activeTab.url) {
+                    try {
+                        domain = new URL(activeTab.url).hostname.replace('www.', '');
+                    } catch {}
+                }
+                
+                window.AppState.update(state => {
+                    state.isAiStreaming = false;
+                    state.taskLogs = [];
+                    state.chatHistory.push({
+                        sender: 'ai',
+                        text: `Security scan complete for **${domain}**. Here is the security status summary:`,
+                        widget: {
+                            type: 'security',
+                            data: {
+                                domain: domain,
+                                safety: domain.includes('google') || domain.includes('wikipedia') || domain.includes('github') ? 'safe' : 'warning',
+                                trackers: domain.includes('google') ? 2 : domain.includes('wikipedia') ? 0 : 8
+                            }
+                        }
+                    });
+                });
+            }
+        }, 1000);
     }
 
     async runSummarizeDemo() {
@@ -1848,19 +2139,59 @@ export class AISidebar extends BaseComponent {
     }
 
     async runQADemo(query) {
-        const snapshot = await this.getActivePageSnapshot();
-        const pageLine = snapshot
-            ? `\n\nActive page context: **${snapshot.title || 'Untitled'}** at \`${snapshot.url || 'current tab'}\`. I captured ${snapshot.text?.length || 0} readable characters and ${(snapshot.links || []).length} links.`
-            : '';
-        let responseText = `I processed your request: *"${query}"*.${pageLine}\n\nThe browser now runs external pages inside Electron Chromium webviews, while the Aether Agent Runtime can receive page snapshots for AI reasoning, click planning, and safer automation gates.`;
+        const resolvedTabs = this.resolveTabMentions(query);
+        let snapshot = null;
+        let tabSnapshots = [];
+        
+        if (resolvedTabs.length > 0) {
+            window.AppState.update(state => {
+                state.taskLogs.push({ text: `Capturing context for ${resolvedTabs.length} referenced tabs`, status: 'running' });
+            });
+            const promises = resolvedTabs.map(async tab => {
+                const snap = typeof window.AeroCaptureTabSnapshot === 'function'
+                    ? await window.AeroCaptureTabSnapshot(tab.id)
+                    : null;
+                return { tab, snap };
+            });
+            tabSnapshots = await Promise.all(promises);
+            window.AppState.update(state => {
+                const lastLog = state.taskLogs[state.taskLogs.length - 1];
+                if (lastLog) {
+                    lastLog.text = `Context captured from: ${resolvedTabs.map(t => t.title.slice(0, 12)).join(', ')}`;
+                    lastLog.status = 'success';
+                }
+            });
+        } else {
+            snapshot = await this.getActivePageSnapshot();
+        }
+
+        let pageLine = '';
+        if (tabSnapshots.length > 0) {
+            pageLine = `\n\nCross-tab context attached for: ${tabSnapshots.map(ts => `**${ts.tab.title}**`).join(', ')}.`;
+        } else if (snapshot) {
+            pageLine = `\n\nActive page context: **${snapshot.title || 'Untitled'}** at \`${snapshot.url || 'current tab'}\`. I captured ${snapshot.text?.length || 0} readable characters.`;
+        }
+
+        let augmentedPrompt = query;
+        tabSnapshots.forEach(({ tab, snap }) => {
+            if (snap) {
+                augmentedPrompt += `\n\n--- Content of Tab: "${tab.title}" (${tab.url}) ---\n`;
+                augmentedPrompt += `Text Content:\n${snap.text || 'Empty page'}\n`;
+                if (snap.links && snap.links.length > 0) {
+                    augmentedPrompt += `Links:\n${snap.links.slice(0, 10).map(l => `- [${l.text}](${l.href})`).join('\n')}\n`;
+                }
+            }
+        });
+
+        let responseText = `I processed your request: *"${query}"*.${pageLine}\n\nThe browser now runs external pages inside Electron Chromium webviews, while the Aether Agent Runtime can receive page snapshots for AI reasoning.`;
         try {
-            const result = await this.callAiCompletion(query, snapshot);
+            const result = await this.callAiCompletion(augmentedPrompt, snapshot);
             responseText = result.text || responseText;
             if (result.provider) {
                 responseText += `\n\n_Answered by ${result.provider} / ${result.model} in ${result.latency_ms}ms._`;
             }
         } catch (error) {
-            responseText += `\n\n_AI provider route unavailable: ${error.message || 'setup incomplete'}.`;
+            responseText += `\n\n_AI provider route unavailable: ${error.message || 'setup incomplete'}_.`;
         }
 
         this.streamAssistantText(responseText);
